@@ -1,4 +1,4 @@
-# NovaVM
+# SPLYT
 
 Gestionnaire de machines virtuelles Windows GPU-P, avec une interface graphique
 moderne. Deux composants, volontairement séparés :
