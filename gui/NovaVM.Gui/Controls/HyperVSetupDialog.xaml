@@ -15,7 +15,7 @@
                            Margin="0,0,0,6" Foreground="{StaticResource TextPrimaryBrush}" />
 
                 <!-- Invite initiale (avant activation) -->
-                <StackPanel Visibility="{Binding Result, Converter={StaticResource NullToVisibilityConverter}}">
+                <StackPanel Visibility="{Binding Result, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
                     <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,18"
                                Foreground="{StaticResource TextSecondaryBrush}">
                         <Run Text="{markup:Tr HyperV_Prompt}" />
@@ -43,7 +43,7 @@
                 </StackPanel>
 
                 <!-- Resultat (apres activation) -->
-                <StackPanel Visibility="{Binding Result, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
+                <StackPanel Visibility="{Binding Result, Converter={StaticResource NullToVisibilityConverter}}">
                     <TextBlock Text="{Binding Result.Message}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,18"
                                Foreground="{StaticResource TextSecondaryBrush}" />
 
