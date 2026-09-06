@@ -91,17 +91,23 @@ Invoke-NovaAction {
         Write-NovaProgress "Configuration du processeur et de la memoire"
         Set-VMProcessor -VMName $Name -Count $Cpu -ErrorAction Stop
 
-        # New-VM cree la VM en memoire STATIQUE par defaut (DynamicMemoryEnabled
-        # $false) : rien a faire de plus dans ce cas, la RAM de demarrage reste
-        # entierement assignee. Si la memoire dynamique est demandee, le plafond
-        # (MaximumBytes) est volontairement egal a la RAM configuree (pas de valeur
-        # enorme par defaut type 1 To) : "X Go" dans SPLYT reste le maximum reel,
-        # la VM peut simplement en utiliser moins au repos.
+        # New-VM active en realite la memoire DYNAMIQUE par defaut (verifie
+        # empiriquement : DynamicMemoryEnabled=True, MaximumBytes=1 To) - il faut
+        # donc toujours repasser explicitement Set-VMMemory dans les DEUX cas, pas
+        # seulement quand la memoire dynamique est demandee, sinon "statique par
+        # defaut" restait dynamique en pratique (Set-VMMemory ne touche que les
+        # parametres fournis, meme raison que Set-NovaVmResources.ps1). Si la
+        # memoire dynamique est demandee, le plafond (MaximumBytes) est
+        # volontairement egal a la RAM configuree (pas de valeur enorme par defaut
+        # type 1 To) : "X Go" dans SPLYT reste le maximum reel, la VM peut
+        # simplement en utiliser moins au repos.
         if ($dynamicMemoryBool) {
             $minimumBytes = [Math]::Min(512MB, $MemoryMb * 1MB)
             Set-VMMemory -VMName $Name -DynamicMemoryEnabled $true `
                 -MinimumBytes $minimumBytes -StartupBytes ($MemoryMb * 1MB) -MaximumBytes ($MemoryMb * 1MB) `
                 -ErrorAction Stop
+        } else {
+            Set-VMMemory -VMName $Name -DynamicMemoryEnabled $false -StartupBytes ($MemoryMb * 1MB) -ErrorAction Stop
         }
 
         # Sans commutateur virtuel, la carte reseau n'a aucun chemin reseau : Windows
