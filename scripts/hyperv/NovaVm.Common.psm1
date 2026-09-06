@@ -22,13 +22,18 @@
     Les VMs sont de VRAIES VMs Hyper-V (Get-VM/New-VM/Start-VM/...). Seules
     quelques preferences qui n'ont pas d'equivalent Hyper-V direct (GPU-P
     choisi, resolution/frequence souhaitees) sont gardees dans un petit
-    fichier JSON local (mock-data/vm-preferences.json), cle par nom de VM.
+    fichier JSON local (vm-preferences.json), cle par nom de VM.
 #>
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$script:DataDir = Join-Path $PSScriptRoot "mock-data"
+# C:\NovaVM (pas un sous-dossier de $PSScriptRoot) : une fois SPLYT installe,
+# les scripts vivent sous Program Files, protege en ecriture pour un
+# utilisateur non-elevé - y ecrire echouait avec "L'acces au chemin ... est
+# refuse". C:\NovaVM est deja la convention pour les autres donnees
+# persistantes de l'app (disques de VM, ISO telechargees, settings.json).
+$script:DataDir = "C:\NovaVM\Data"
 
 function Get-NovaDataStorePath {
     param([Parameter(Mandatory)][string]$Name)

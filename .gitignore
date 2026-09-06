@@ -34,10 +34,6 @@ bin/
 obj/
 *.user
 
-# Donnees mock du backend Hyper-V (jamais commitees ; ne devrait de toute facon
-# apparaitre que sous gui/NovaVM.Gui/bin/**/hyperv/, jamais sous scripts/hyperv/)
-scripts/hyperv/mock-data/
-
 # Sorties de publication/installation (regenerees via installer/SPLYT.iss -
 # voir sa doc pour les commandes exactes de reconstruction)
 /dist/
