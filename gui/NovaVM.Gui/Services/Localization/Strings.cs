@@ -165,11 +165,12 @@ internal static class Strings
         ["EnhancedSession_FixFailed"] = "La correction a echoue.",
 
         // --- Dialogue activation Hyper-V ---
-        ["HyperV_Title"] = "Activer Hyper-V",
-        ["HyperV_Prompt"] = "SPLYT a besoin de Hyper-V pour creer et piloter des machines virtuelles, et ce n'est pas encore active sur ce PC. L'activer maintenant ? Cela necessite les droits administrateur (invite Windows) et, si c'est la premiere fois, un redemarrage complet du PC.",
+        ["HyperV_Title"] = "Installer Hyper-V",
+        ["HyperV_Prompt"] = "SPLYT a besoin de Hyper-V pour creer et piloter des machines virtuelles, et ce n'est pas encore installe/active sur ce PC. L'installer maintenant ? Cela necessite les droits administrateur (invite Windows) et, si c'est la premiere fois, un redemarrage complet du PC.",
         ["HyperV_EditionNote"] = "Disponible sur Windows 11 Pro, Entreprise et Education uniquement (pas sur Windows Home).",
-        ["HyperV_InProgress"] = "Activation en cours...",
-        ["HyperV_EnableNow"] = "Activer maintenant",
+        ["HyperV_InProgress"] = "Installation de Hyper-V en cours (peut prendre plusieurs minutes) - ne fermez pas SPLYT...",
+        ["HyperV_EnableNow"] = "Installer Hyper-V",
+        ["HyperV_RebootStillPending"] = "Hyper-V a deja ete installe sur ce PC, mais un redemarrage complet est encore necessaire pour finaliser l'installation. Redemarrer maintenant ?",
         ["Common_Later"] = "Plus tard",
         ["Common_Close"] = "Fermer",
 
@@ -385,11 +386,12 @@ internal static class Strings
         ["EnhancedSession_FixFailed"] = "The fix failed.",
 
         // --- Hyper-V setup dialog ---
-        ["HyperV_Title"] = "Enable Hyper-V",
-        ["HyperV_Prompt"] = "SPLYT needs Hyper-V to create and control virtual machines, and it isn't enabled on this PC yet. Enable it now? This requires administrator rights (Windows prompt) and, if this is the first time, a full PC restart.",
+        ["HyperV_Title"] = "Install Hyper-V",
+        ["HyperV_Prompt"] = "SPLYT needs Hyper-V to create and control virtual machines, and it isn't installed/enabled on this PC yet. Install it now? This requires administrator rights (Windows prompt) and, if this is the first time, a full PC restart.",
         ["HyperV_EditionNote"] = "Available on Windows 11 Pro, Enterprise and Education only (not on Windows Home).",
-        ["HyperV_InProgress"] = "Enabling...",
-        ["HyperV_EnableNow"] = "Enable now",
+        ["HyperV_InProgress"] = "Installing Hyper-V (can take several minutes) - don't close SPLYT...",
+        ["HyperV_EnableNow"] = "Install Hyper-V",
+        ["HyperV_RebootStillPending"] = "Hyper-V has already been installed on this PC, but a full restart is still needed to finish the installation. Restart now?",
         ["Common_Later"] = "Later",
         ["Common_Close"] = "Close",
 

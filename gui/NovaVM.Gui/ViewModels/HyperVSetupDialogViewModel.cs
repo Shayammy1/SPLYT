@@ -15,17 +15,36 @@ public sealed class HyperVSetupDialogViewModel : ViewModelBase
     private readonly NovaVmService _vmService;
     private HyperVSetupResultDto? _result;
 
-    public HyperVSetupDialogViewModel(NovaVmService vmService)
+    /// <summary>rebootPending : vrai si une precedente activation a deja reussi mais
+    /// attend toujours un redemarrage (voir AppSettingsStore.HyperVRebootPending).
+    /// Dans ce cas, on saute directement a l'ecran "resultat" (rappel de redemarrer)
+    /// au lieu de re-proposer la meme invite "voulez-vous activer Hyper-V ?" comme
+    /// si rien n'avait ete fait - c'etait trompeur, l'activation a bien eu lieu,
+    /// il ne manque que le redemarrage pour la rendre effective.</summary>
+    public HyperVSetupDialogViewModel(NovaVmService vmService, bool rebootPending = false)
     {
         _vmService = vmService;
 
         EnableCommand = new AsyncRelayCommand(EnableAsync);
         DismissCommand = new RelayCommand(() => Dismissed?.Invoke(this, EventArgs.Empty));
         RestartNowCommand = new RelayCommand(RestartNow);
+
+        if (rebootPending)
+        {
+            Result = new HyperVSetupResultDto
+            {
+                EditionSupported = true,
+                AlreadyEnabled = false,
+                RebootRequired = true,
+                AddedToHyperVAdmins = false,
+                Message = Loc.Get("HyperV_RebootStillPending"),
+            };
+        }
     }
 
-    /// <summary>Non-null une fois EnableCommand termine avec succes : bascule
-    /// l'affichage de la boite de dialogue de l'invite initiale vers le resultat.</summary>
+    /// <summary>Non-null une fois EnableCommand termine avec succes (ou des la
+    /// construction si un redemarrage etait deja en attente) : bascule l'affichage
+    /// de la boite de dialogue de l'invite initiale vers le resultat.</summary>
     public HyperVSetupResultDto? Result
     {
         get => _result;
@@ -60,6 +79,18 @@ public sealed class HyperVSetupDialogViewModel : ViewModelBase
             {
                 ErrorMessage = error ?? Loc.Get("HyperV_EnableFailed");
                 return;
+            }
+
+            // Memorise qu'une activation reussie attend un redemarrage : sans ca,
+            // rouvrir SPLYT avant d'avoir redemarre re-afficherait la MEME invite
+            // "voulez-vous activer ?" (hyperVModuleInstalled reste faux tant que le
+            // PC n'a pas redemarre), ce qui donne l'impression trompeuse que rien
+            // n'a ete installe.
+            if (result.RebootRequired)
+            {
+                var settings = AppSettingsStore.Load();
+                settings.HyperVRebootPending = true;
+                AppSettingsStore.Save(settings);
             }
 
             Result = result;

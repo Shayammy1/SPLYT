@@ -1,5 +1,4 @@
-using System.IO;
-using System.Text.Json;
+using NovaVM.Gui.Services;
 
 namespace NovaVM.Gui.Services.Localization;
 
@@ -12,7 +11,7 @@ public enum AppLanguage
 /// <summary>
 /// Service de traduction minimal, sans resx/LocBaml (pas de conteneur DI ni d'etape
 /// de build dans ce projet - voir App.xaml.cs). Deux dictionnaires statiques cle->texte
-/// (voir Strings.cs), un fichier de preference persiste sur disque, et une
+/// (voir Strings.cs), une preference persistee via AppSettingsStore, et une
 /// MarkupExtension (Markup/TrExtension.cs) pour le XAML.
 ///
 /// Changement de langue applique au PROCHAIN demarrage de SPLYT (pas en direct) :
@@ -23,8 +22,6 @@ public enum AppLanguage
 /// </summary>
 public static class Loc
 {
-    private static readonly string SettingsFilePath = Path.Combine(@"C:\NovaVM", "settings.json");
-
     public static AppLanguage CurrentLanguage { get; private set; } = LoadSavedLanguage();
 
     /// <summary>Traduit une cle vers le texte de la langue active. Retourne la cle
@@ -44,40 +41,18 @@ public static class Loc
     public static void SetLanguage(AppLanguage language)
     {
         CurrentLanguage = language;
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(SettingsFilePath)!);
-            File.WriteAllText(SettingsFilePath, JsonSerializer.Serialize(new PersistedSettings { Language = language.ToString() }));
-        }
-        catch
-        {
-            // Best-effort : la preference retombera sur le francais au prochain
-            // demarrage si l'ecriture echoue (dossier protege, disque plein...),
-            // pas une raison de faire planter le changement de langue en cours.
-        }
+        var settings = AppSettingsStore.Load();
+        settings.Language = language.ToString();
+        AppSettingsStore.Save(settings);
     }
 
     private static AppLanguage LoadSavedLanguage()
     {
-        try
+        var settings = AppSettingsStore.Load();
+        if (settings.Language is not null && Enum.TryParse<AppLanguage>(settings.Language, out var parsed))
         {
-            if (!File.Exists(SettingsFilePath)) return AppLanguage.French;
-            var json = File.ReadAllText(SettingsFilePath);
-            var settings = JsonSerializer.Deserialize<PersistedSettings>(json);
-            if (settings?.Language is not null && Enum.TryParse<AppLanguage>(settings.Language, out var parsed))
-            {
-                return parsed;
-            }
-        }
-        catch
-        {
-            // Fichier corrompu/illisible : on retombe sur le francais par defaut.
+            return parsed;
         }
         return AppLanguage.French;
-    }
-
-    private sealed class PersistedSettings
-    {
-        public string? Language { get; set; }
     }
 }

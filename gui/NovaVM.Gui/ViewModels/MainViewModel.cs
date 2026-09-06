@@ -156,9 +156,24 @@ public sealed class MainViewModel : ViewModelBase
     private async Task CheckHyperVSetupAsync()
     {
         var diag = await _vmService.GetDiagnosticsAsync();
-        if (diag is null || diag.HyperVModuleInstalled) return;
+        if (diag is null) return;
 
-        var dialog = new HyperVSetupDialogViewModel(_vmService);
+        if (diag.HyperVModuleInstalled)
+        {
+            // Hyper-V est bien detecte : si un redemarrage etait note comme "en
+            // attente" (voir HyperVSetupDialogViewModel), il a fait son effet -
+            // on efface la marque pour ne pas la trainer indefiniment.
+            var settings = AppSettingsStore.Load();
+            if (settings.HyperVRebootPending)
+            {
+                settings.HyperVRebootPending = false;
+                AppSettingsStore.Save(settings);
+            }
+            return;
+        }
+
+        var rebootPending = AppSettingsStore.Load().HyperVRebootPending;
+        var dialog = new HyperVSetupDialogViewModel(_vmService, rebootPending);
         dialog.Dismissed += (_, _) => IsHyperVSetupDialogOpen = false;
         HyperVSetupDialog = dialog;
         IsHyperVSetupDialogOpen = true;
