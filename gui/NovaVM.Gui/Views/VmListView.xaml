@@ -1,0 +1,375 @@
+<UserControl x:Class="NovaVM.Gui.Views.VmListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:NovaVM.Gui.ViewModels"
+             xmlns:models="clr-namespace:NovaVM.Gui.Models"
+             xmlns:markup="clr-namespace:NovaVM.Gui.Markup"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:VmListViewModel}">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="{markup:Tr Nav_VmList}" FontSize="26" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <TextBlock Text="{markup:Tr VmList_Subtitle}" FontSize="13" Margin="0,4,0,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="{markup:Tr Common_Refresh}" Style="{StaticResource GhostButtonStyle}"
+                        Command="{Binding RefreshCommand}" Margin="0,0,10,0" />
+                <Button Content="{markup:Tr VmList_CreateVm}" Style="{StaticResource AccentButtonStyle}"
+                        Command="{Binding OpenCreateVmDialogCommand}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Liste des VMs -->
+            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="{markup:Tr VmList_MachinesHeader}" Margin="8,4,8,10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+                    <ListBox ItemsSource="{Binding Vms}" SelectedItem="{Binding SelectedVm}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavListBoxItemStyle}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="14,12" />
+                                <Setter Property="Margin" Value="2,3" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:VirtualMachine}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <Ellipse Grid.Column="1" Width="9" Height="9"
+                                                 Fill="{Binding State, Converter={StaticResource VmStateToBrushConverter}}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding DisplaySummary}" FontSize="11" Margin="0,4,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Detail de la VM selectionnee -->
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}"
+                    Visibility="{Binding SelectedVm, Converter={StaticResource NullToVisibilityConverter}}">
+                <DockPanel>
+                    <!-- En-tete : nom, statut, actions -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding SelectedVm.Name}" FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <Border CornerRadius="10" Padding="10,3" Margin="12,0,0,0" VerticalAlignment="Center"
+                                        Background="{Binding SelectedVm.State, Converter={StaticResource VmStateToBrushConverter}}">
+                                    <TextBlock Text="{Binding SelectedVm.StateDisplay}" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="#0A0E12" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding SelectedVm.DisplaySummary}" FontSize="12" Margin="0,6,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="{markup:Tr VmList_Start}" Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding StartCommand}" Margin="0,0,8,0" />
+                            <Button Content="{markup:Tr VmList_Stop}" Style="{StaticResource GhostButtonStyle}"
+                                    Command="{Binding StopCommand}" Margin="0,0,8,0"
+                                    ToolTip="{markup:Tr VmList_Stop_Tooltip}" />
+                            <Button Content="{markup:Tr VmList_ForceStop}" Style="{StaticResource GhostButtonStyle}"
+                                    Command="{Binding ForceStopCommand}" Margin="0,0,8,0"
+                                    ToolTip="{markup:Tr VmList_ForceStop_Tooltip}" />
+                            <Button Content="{markup:Tr Common_Delete}" Style="{StaticResource DangerButtonStyle}"
+                                    Command="{Binding DeleteCommand}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource BorderBrush2}" Margin="0,0,0,16" />
+
+                    <!-- Erreur de la VM, si presente -->
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,16" Padding="14,10" CornerRadius="10"
+                            Background="#2A1B1E"
+                            Visibility="{Binding SelectedVm.LastError, Converter={StaticResource NullToVisibilityConverter}}">
+                        <TextBlock Text="{Binding SelectedVm.LastError}" Foreground="{StaticResource DangerBrush}"
+                                   TextWrapping="Wrap" FontSize="12" />
+                    </Border>
+
+                    <!-- ISO montee, si presente -->
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,16" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Visibility="{Binding SelectedVm.IsoPath, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="{markup:Tr VmList_IsoMounted}" /><Run Text="{Binding SelectedVm.IsoPath, Mode=OneWay}" FontWeight="SemiBold" />
+                    </TextBlock>
+
+                    <!-- Erreur de la derniere action (ex. validation RAM) -->
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,16" Padding="14,10" CornerRadius="10"
+                            Background="#2A1B1E"
+                            Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}">
+                        <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}"
+                                   TextWrapping="Wrap" FontSize="12" />
+                    </Border>
+
+                    <TabControl Background="Transparent" BorderThickness="0">
+                        <TabItem Header="{markup:Tr VmList_Tab_Resources}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
+                                <TextBlock Text="{markup:Tr VmList_Res_Vcpu}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+                                <Grid Margin="0,6,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="40" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Minimum="1" Maximum="16" Value="{Binding EditCpu}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding EditCpu}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <TextBlock Text="{markup:Tr VmList_Res_Ram}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+                                <Grid Margin="0,6,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="40" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Minimum="1" Maximum="{Binding MaxMemoryGb}" Value="{Binding EditMemoryGb}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding EditMemoryGb}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4">
+                                    <Run Text="{markup:Tr VmList_Res_PhysicalRamDetected}" /><Run Text="{Binding TotalPhysicalRamGb, Mode=OneWay}" /><Run Text="{markup:Tr VmList_Res_MaxForVm}" /><Run Text="{Binding MaxMemoryGb, Mode=OneWay}" /><Run Text="{markup:Tr Common_GbUnit}" />
+                                </TextBlock>
+                                <TextBlock Text="{markup:Tr VmList_Res_RamWarning}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource WarningBrush}" Margin="0,0,0,18" TextWrapping="Wrap"
+                                           Visibility="{Binding ShowRamWarning, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                                <CheckBox Content="{markup:Tr Vm_DynamicMemory}" IsChecked="{Binding EditDynamicMemoryEnabled}"
+                                          Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,18"
+                                          ToolTip="{markup:Tr Vm_DynamicMemory_Tooltip}" />
+
+                                <Button Content="{markup:Tr Common_Save}" Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding SaveResourcesCommand}" HorizontalAlignment="Left" />
+
+                                <Expander Header="{markup:Tr VmList_Gaming_Header}" Margin="0,24,0,0" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,18"
+                                                   Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="{markup:Tr VmList_Gaming_Intro}" />
+                                        </TextBlock>
+
+                                        <TextBlock Text="{markup:Tr VmList_Credentials_UsernameLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBox Text="{Binding GamingUsername, UpdateSourceTrigger=PropertyChanged}" Width="380" HorizontalAlignment="Left" Margin="0,6,0,16" />
+
+                                        <TextBlock Text="{markup:Tr VmList_Credentials_PasswordLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <PasswordBox x:Name="GamingPasswordInput" Width="380" HorizontalAlignment="Left" Margin="0,6,0,16" />
+
+                                        <CheckBox Content="{markup:Tr VmList_Credentials_Remember}" IsChecked="{Binding GamingRememberCredentials}" Margin="0,0,0,18"
+                                                  Foreground="{StaticResource TextPrimaryBrush}" />
+
+                                        <Border Height="1" Background="{StaticResource BorderBrush2}" Margin="0,0,0,18" />
+
+                                        <TextBlock Text="{markup:Tr VmList_Gaming_PerformanceTitle}" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10">
+                                            <Run Text="{markup:Tr VmList_Gaming_PerformanceDesc}" />
+                                        </TextBlock>
+                                        <Button Content="{markup:Tr VmList_Gaming_OptimizePerformance}" Style="{StaticResource AccentButtonStyle}"
+                                                Command="{Binding GamingOptimizePerformanceCommand}" HorizontalAlignment="Left" Margin="0,0,0,18" />
+
+                                        <TextBlock Text="{markup:Tr VmList_Gaming_PrivacyTitle}" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10">
+                                            <Run Text="{markup:Tr VmList_Gaming_PrivacyDesc}" />
+                                        </TextBlock>
+                                        <Button Content="{markup:Tr VmList_Gaming_ReduceTracking}" Style="{StaticResource GhostButtonStyle}"
+                                                Command="{Binding GamingOptimizePrivacyCommand}" HorizontalAlignment="Left" Margin="0,0,0,0" />
+
+                                        <TextBlock Text="{Binding GamingResultText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,18,0,0"
+                                                   Visibility="{Binding GamingResultText, Converter={StaticResource NullToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="GPU-P">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
+                                <TextBlock Text="{markup:Tr VmList_Gpu_Partitioned}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+                                <ComboBox ItemsSource="{Binding GpuDropdownOptions}" SelectedItem="{Binding EditGpuSelection}"
+                                          Margin="0,6,0,18" />
+
+                                <TextBlock Text="{markup:Tr VmList_Gpu_VramAllocated}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+                                <Grid Margin="0,6,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="60" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Minimum="512" Maximum="16384" Value="{Binding EditGpuVramMb}" TickFrequency="512"
+                                            IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding EditGpuVramMb}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Content="{markup:Tr Common_Save}" Style="{StaticResource AccentButtonStyle}"
+                                            Command="{Binding SaveGpuCommand}" Margin="0,0,8,8" />
+                                    <Button Content="{markup:Tr Common_Diagnose}" Style="{StaticResource GhostButtonStyle}"
+                                            Command="{Binding RunGpuDiagnosticsCommand}" Margin="0,0,8,8" />
+                                    <Button Content="{markup:Tr VmList_Gpu_InstallDriver}" Style="{StaticResource GhostButtonStyle}"
+                                            Command="{Binding InstallGpuDriverCommand}" Margin="0,0,8,8"
+                                            ToolTip="{markup:Tr VmList_Gpu_InstallDriver_Tooltip}" />
+                                </WrapPanel>
+
+                                <TextBlock Text="{Binding GpuDiagnosticsSummary}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,0"
+                                           Visibility="{Binding GpuDiagnosticsSummary, Converter={StaticResource NullToVisibilityConverter}}" />
+
+                                <Expander Header="{markup:Tr VmList_Nvidia_Header}" Margin="0,24,0,0" Foreground="{StaticResource TextPrimaryBrush}"
+                                          Visibility="{Binding IsNvidiaGpuSelected, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <StackPanel Margin="0,16,0,0">
+                                        <Border Background="#2A1B1E" CornerRadius="8" Padding="12,10" Margin="0,0,0,16">
+                                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource DangerBrush}">
+                                                <Run Text="{markup:Tr VmList_Nvidia_Warning}" />
+                                            </TextBlock>
+                                        </Border>
+
+                                        <TextBlock Text="{markup:Tr VmList_Nvidia_InstallerLabel}" FontSize="12"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding NvidiaDriverInstallerPath, Mode=OneWay}" IsReadOnly="True"
+                                                     ToolTip="{Binding NvidiaDriverInstallerPath}" />
+                                            <Button Grid.Column="2" Content="{markup:Tr Common_Browse}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding BrowseNvidiaDriverCommand}" />
+                                        </Grid>
+
+                                        <Button Content="{markup:Tr VmList_Nvidia_PatchButton}" Style="{StaticResource DangerButtonStyle}"
+                                                Command="{Binding PatchNvidiaGpuDriverCommand}" HorizontalAlignment="Left" Margin="0,14,0,0"
+                                                ToolTip="{markup:Tr VmList_Nvidia_PatchButton_Tooltip}" />
+
+                                        <TextBlock Text="{Binding NvidiaPatchResultText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,0"
+                                                   Visibility="{Binding NvidiaPatchResultText, Converter={StaticResource NullToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="{markup:Tr VmList_Tab_Display}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="0,16,0,16" MaxWidth="640" HorizontalAlignment="Left">
+                                <Border Background="#2A1B1E" CornerRadius="8" Padding="12,10" Margin="0,0,0,16">
+                                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource DangerBrush}">
+                                        <Run Text="{markup:Tr VmList_Display_HzWarning_Part1}"/>
+                                        <Run Text="60 Hz" FontWeight="Bold" />
+                                        <Run Text="{markup:Tr VmList_Display_HzWarning_Part2}" />
+                                    </TextBlock>
+                                </Border>
+
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Content="{markup:Tr Common_Diagnose}" Style="{StaticResource GhostButtonStyle}"
+                                            Command="{Binding RunDisplayDiagnosticsCommand}" Margin="0,0,8,8" />
+                                    <Button Content="{markup:Tr VmList_Display_InstallSunshine}" Style="{StaticResource GhostButtonStyle}"
+                                            Command="{Binding OpenSunshineInstallDialogCommand}" Margin="0,0,8,8"
+                                            ToolTip="{markup:Tr VmList_Display_InstallSunshine_Tooltip}" />
+                                    <Button Content="{markup:Tr VmList_Display_FixEnhancedSession}" Style="{StaticResource GhostButtonStyle}"
+                                            Command="{Binding OpenEnhancedSessionFixDialogCommand}" Margin="0,0,8,8"
+                                            ToolTip="{markup:Tr VmList_Display_FixEnhancedSession_Tooltip}" />
+                                </WrapPanel>
+
+                                <TextBlock Text="{Binding DisplayDiagnosticsSummary}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,0"
+                                           Visibility="{Binding DisplayDiagnosticsSummary, Converter={StaticResource NullToVisibilityConverter}}" />
+
+                                <Expander Header="Virtual Display Driver" Margin="0,24,0,0" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,18"
+                                                   Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="{markup:Tr VmList_Vdd_Intro}" />
+                                        </TextBlock>
+
+                                        <TextBlock Text="{markup:Tr VmList_Credentials_UsernameLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBox Text="{Binding VddUsername, UpdateSourceTrigger=PropertyChanged}" Width="380" HorizontalAlignment="Left" Margin="0,6,0,4" />
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,16">
+                                            <Run Text="{markup:Tr VmList_Credentials_MicrosoftHint_Part1}" />
+                                            <Run Text="moncomptemicrosoft@gmail.com" FontStyle="Italic" />
+                                            <Run Text="{markup:Tr VmList_Credentials_MicrosoftHint_Part2}" />
+                                        </TextBlock>
+
+                                        <TextBlock Text="{markup:Tr VmList_Credentials_PasswordLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <PasswordBox x:Name="VddPasswordInput" Width="380" HorizontalAlignment="Left" Margin="0,6,0,16" />
+
+                                        <CheckBox Content="{markup:Tr VmList_Credentials_Remember}" IsChecked="{Binding VddRememberCredentials}" Margin="0,0,0,10"
+                                                  Foreground="{StaticResource TextPrimaryBrush}" />
+
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,18">
+                                            <Run Text="{markup:Tr VmList_Credentials_StorageNote}" />
+                                        </TextBlock>
+
+                                        <Border Height="1" Background="{StaticResource BorderBrush2}" Margin="0,0,0,18" />
+
+                                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,18">
+                                            <Button Content="{markup:Tr VmList_Vdd_InstallAuto}" Style="{StaticResource AccentButtonStyle}"
+                                                    Command="{Binding VddInstallCommand}" Margin="0,0,8,8"
+                                                    ToolTip="{markup:Tr VmList_Vdd_InstallAuto_Tooltip}" />
+                                            <Button Content="{markup:Tr Common_Diagnose}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding VddDiagnoseCommand}" Margin="0,0,8,8" />
+                                            <Button Content="{markup:Tr VmList_Vdd_Enable}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding VddEnableCommand}" Margin="0,0,8,8" />
+                                            <Button Content="{markup:Tr VmList_Vdd_Disable}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding VddDisableCommand}" Margin="0,0,8,8" />
+                                        </WrapPanel>
+
+                                        <TextBlock Text="{Binding VddResultText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,0"
+                                                   Visibility="{Binding VddResultText, Converter={StaticResource NullToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                </DockPanel>
+            </Border>
+
+            <!-- Etat vide : aucune VM selectionnee -->
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}"
+                    Visibility="{Binding SelectedVm, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="{markup:Tr VmList_NoSelection}" FontSize="14"
+                               Foreground="{StaticResource TextMutedBrush}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

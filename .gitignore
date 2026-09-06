@@ -1,0 +1,44 @@
+# Répertoires de build
+/build/
+/out/
+/bin/
+/x64/
+/x86/
+
+# Cache et fichiers générés par CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+
+# Visual Studio / MSVC
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.ilk
+*.pdb
+*.obj
+*.exe
+*.idb
+*.log
+
+# VS Code (config personnelle de l'éditeur)
+.vscode/
+
+# .NET / GUI (gui/NovaVM.Gui) - non ancrés : bin/obj apparaissent sous gui/NovaVM.Gui/
+bin/
+obj/
+*.user
+
+# Donnees mock du backend Hyper-V (jamais commitees ; ne devrait de toute facon
+# apparaitre que sous gui/NovaVM.Gui/bin/**/hyperv/, jamais sous scripts/hyperv/)
+scripts/hyperv/mock-data/
+
+# Sorties de publication/installation (regenerees via installer/SPLYT.iss -
+# voir sa doc pour les commandes exactes de reconstruction)
+/dist/
+/gui/NovaVM.Gui/bin/Release/publish-win-x64/

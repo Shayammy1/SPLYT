@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>NovaVM.Gui</AssemblyName>
+    <RootNamespace>NovaVM.Gui</RootNamespace>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AppIcon.ico" />
+  </ItemGroup>
+
+  <!--
+    Le backend "Hyper-V" (scripts/hyperv a la racine du depot) est copie a cote de
+    l'executable a chaque build, sous hyperv\. Cela garde une separation stricte entre
+    la GUI et les scripts (que l'on peut modifier sans toucher au projet C#), tout en
+    permettant a l'appli de les localiser via AppContext.BaseDirectory a l'execution,
+    quel que soit l'endroit d'ou le depot a ete clone.
+  -->
+  <ItemGroup>
+    <None Include="..\..\scripts\hyperv\**\*.ps1;..\..\scripts\hyperv\**\*.psm1">
+      <Link>hyperv\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
