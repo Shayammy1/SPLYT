@@ -306,9 +306,10 @@ public sealed class NovaVmService
     /// Necessite une elevation (invite UAC) independamment des droits Hyper-V
     /// Administrateurs deja suffisants pour le reste de l'appli : DISM l'exige.
     /// La VM doit etre eteinte (montage hors-ligne de son VHDX).</summary>
-    public async Task<(GpuDriverInstallResultDto? Result, string? Error)> InstallGpuDriverAsync(string name)
+    public async Task<(GpuDriverInstallResultDto? Result, string? Error)> InstallGpuDriverAsync(
+        string name, Action<string>? onProgress = null)
     {
-        var result = await _runner.RunElevatedAsync("Install-NovaVmGpuDriver.ps1", ("Name", name));
+        var result = await _runner.RunElevatedAsync("Install-NovaVmGpuDriver.ps1", onProgress, ("Name", name));
 
         _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Install-NovaVmGpuDriver.ps1",
             $"Installation du pilote GPU-P pour '{name}' : " + (result.Success ? "succes" : "echec"),
@@ -520,12 +521,18 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
-    public async Task<HostMemoryLimits> GetHostMemoryLimitsAsync()
+    public async Task<HostLimits> GetHostLimitsAsync()
     {
-        var result = await RunSilentAsync("Get-NovaVmHostMemoryLimits.ps1", "Limites de RAM hote");
-        var dto = result.DeserializeData<HostMemoryLimitsDto>();
-        if (dto is null) return HostMemoryLimits.Default;
-        return new HostMemoryLimits { TotalPhysicalMb = dto.TotalPhysicalMb, MaxVmMemoryMb = dto.MaxVmMemoryMb };
+        var result = await RunSilentAsync("Get-NovaVmHostMemoryLimits.ps1", "Capacites de l'hote (RAM/CPU)");
+        var dto = result.DeserializeData<HostLimitsDto>();
+        if (dto is null) return HostLimits.Default;
+        return new HostLimits
+        {
+            TotalPhysicalMb = dto.TotalPhysicalMb,
+            MaxVmMemoryMb = dto.MaxVmMemoryMb,
+            CpuCores = dto.CpuCores,
+            CpuLogicalProcessors = dto.CpuLogicalProcessors,
+        };
     }
 
     // --- Helpers -----------------------------------------------------------

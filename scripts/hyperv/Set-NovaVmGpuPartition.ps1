@@ -78,6 +78,18 @@ Invoke-NovaAction {
     Set-VM -VMName $Name -LowMemoryMappedIoSpace 3GB -ErrorAction Stop
     Set-VM -VMName $Name -HighMemoryMappedIoSpace 32GB -ErrorAction Stop
 
+    # Points de controle automatiques : actives par defaut par Hyper-V cote client
+    # (verifie sur cette machine - un fichier .avhdx apparaissait des le premier
+    # demarrage). Hyper-V refuse de capturer une VM porteuse d'un adaptateur GPU-P,
+    # et faire tourner la VM depuis un disque de differenciation fausse en plus la
+    # preparation hors-ligne du pilote (Install-NovaVmGpuDriver.ps1 monte le disque
+    # attache, qui serait alors le .avhdx et non le disque de base). De meme,
+    # "sauvegarder l'etat" a l'arret de l'hote est incompatible avec un GPU
+    # partitionne : on bascule sur un arret franc.
+    Set-VM -VMName $Name -AutomaticCheckpointsEnabled $false -ErrorAction SilentlyContinue
+    Set-VM -VMName $Name -CheckpointType Disabled -ErrorAction SilentlyContinue
+    Set-VM -VMName $Name -AutomaticStopAction TurnOff -ErrorAction SilentlyContinue
+
     # --- Verification reelle : ne jamais affirmer un succes sans ca ---------
     $attached = Get-VMGpuPartitionAdapter -VMName $Name -ErrorAction Stop | Select-Object -First 1
     if (-not $attached) {

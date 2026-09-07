@@ -34,20 +34,25 @@
                     </StackPanel>
                 </StackPanel>
 
+                <!-- Marge droite : sans elle, la barre de defilement se superpose a la fin
+                     des lignes de texte du panneau (constate a l'usage). -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
+                    <StackPanel Margin="0,0,14,0">
                         <TextBlock Text="{markup:Tr CreateVm_Name}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
                         <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,16" />
 
                         <TextBlock Text="{markup:Tr VmList_Res_Vcpu}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
-                        <Grid Margin="0,6,0,16">
+                        <Grid Margin="0,6,0,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="36" />
                             </Grid.ColumnDefinitions>
-                            <Slider Minimum="1" Maximum="16" Value="{Binding Cpu}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                            <Slider Minimum="1" Maximum="{Binding MaxCpu}" Value="{Binding Cpu}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding Cpu}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" />
                         </Grid>
+                        <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,16">
+                            <Run Text="{markup:Tr VmList_Res_CpuDetected}" /><Run Text="{Binding CpuCores, Mode=OneWay}" /><Run Text="{markup:Tr VmList_Res_CpuCores}" /><Run Text="{Binding CpuLogicalProcessors, Mode=OneWay}" /><Run Text="{markup:Tr VmList_Res_CpuThreads}" />
+                        </TextBlock>
 
                         <TextBlock Text="{markup:Tr VmList_Res_Ram}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
                         <Grid Margin="0,6,0,4">
@@ -83,14 +88,19 @@
                         <ComboBox ItemsSource="{Binding AvailableGpus}" SelectedItem="{Binding SelectedGpu}" Margin="0,6,0,16" />
 
                         <TextBlock Text="{markup:Tr VmList_Gpu_VramAllocated}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
-                        <Grid Margin="0,6,0,16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="56" />
-                            </Grid.ColumnDefinitions>
-                            <Slider Minimum="512" Maximum="16384" Value="{Binding GpuVramMb}" TickFrequency="512" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1" Text="{Binding GpuVramMb}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" />
-                        </Grid>
+                        <StackPanel Margin="0,6,0,16">
+                            <Grid IsEnabled="{Binding HasDedicatedVram}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="56" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Minimum="512" Maximum="{Binding MaxGpuVramMb}" Value="{Binding GpuVramMb}" TickFrequency="512" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding GpuVramMb}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" />
+                            </Grid>
+                            <TextBlock Text="{markup:Tr VmList_Gpu_NoDedicatedVram}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"
+                                       Visibility="{Binding NoDedicatedVram, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        </StackPanel>
 
                         <TextBlock Text="{markup:Tr CreateVm_IsoLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
                         <Grid Margin="0,6,0,4">

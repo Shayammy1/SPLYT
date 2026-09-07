@@ -203,6 +203,10 @@ Invoke-NovaAction {
             if (-not $partition) { throw "Aucune partition Windows (avec lettre de lecteur) trouvee sur le disque de la VM une fois monte." }
             $volumeRoot = "$($partition.DriveLetter):\"
 
+            # Voir Install-NovaVmGpuDriver.ps1 : referme la fenetre d'Explorateur
+            # ouverte automatiquement au premier plan par le montage du volume.
+            Close-NovaMountedVolumeExplorerWindow -DriveLetter $partition.DriveLetter
+
             Write-NovaProgress "Activation du Mode test (magasin BCD hors-ligne de la VM)"
             $bcdStorePath = Join-Path $volumeRoot "Boot\BCD"
             if (Test-Path -LiteralPath $bcdStorePath) {

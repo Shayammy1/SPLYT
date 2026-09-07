@@ -98,5 +98,12 @@
             <ContentControl Content="{Binding HyperVSetupDialog}" Focusable="False" />
         </Grid>
 
+        <!-- Voile + boite de confirmation generique (type d'arret, suppression d'une VM...) -->
+        <Grid Grid.Row="0" Grid.RowSpan="2"
+              Visibility="{Binding IsConfirmDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#B0000000" />
+            <ContentControl Content="{Binding ConfirmDialog}" Focusable="False" />
+        </Grid>
+
     </Grid>
 </ui:FluentWindow>

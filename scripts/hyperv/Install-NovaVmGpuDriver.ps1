@@ -79,6 +79,10 @@ Invoke-NovaAction {
         }
         $volumeRoot = "$($partition.DriveLetter):\"
 
+        # Windows ouvre une fenetre d'Explorateur au premier plan des que le
+        # volume apparait, en plein milieu de l'operation : on la referme.
+        Close-NovaMountedVolumeExplorerWindow -DriveLetter $partition.DriveLetter
+
         # --- Etape 1 : copie complete du magasin de pilotes vers HostDriverStore ---
         Write-NovaProgress "Copie du magasin de pilotes complet (environ 2 a 3 Go, peut prendre plusieurs minutes)"
         $sourceRepo = "$env:SystemRoot\System32\DriverStore\FileRepository"
@@ -90,6 +94,48 @@ Invoke-NovaAction {
         # Robocopy : codes de sortie 0-7 = succes (voir sa documentation), 8+ = echec reel.
         if ($LASTEXITCODE -ge 8) {
             throw "La copie du magasin de pilotes (robocopy) a echoue avec le code $LASTEXITCODE."
+        }
+
+        # --- Etape 1bis : fichiers "en vrac" du pilote dans System32 -----------
+        # Le magasin de pilotes ne suffit pas : l'INF d'un pilote graphique
+        # installe aussi une serie de DLL directement dans System32 (et
+        # System32\drivers) - cote AMD amdxc64.dll/atiumd64.dll, cote NVIDIA
+        # nvapi64.dll, etc. Sans elles dans l'invite, le pilote paravirtualise
+        # ne peut pas se charger et le GPU n'apparait PAS DU TOUT dans le
+        # Gestionnaire de peripheriques (pas meme en peripherique inconnu :
+        # l'adaptateur GPU-P n'est pas un peripherique PCI, il n'existe cote
+        # invite que si son pilote se charge). C'est l'etape que la
+        # documentation Microsoft passe sous silence mais que toutes les
+        # implementations qui fonctionnent reellement effectuent.
+        #
+        # Methode : pour chaque fichier du paquet de pilote hote, s'il existe
+        # aussi un fichier de meme nom dans System32 (ou System32\drivers) de
+        # l'hote, c'est que l'INF l'y a installe - on le copie au meme endroit
+        # dans l'invite.
+        Write-NovaProgress "Copie des fichiers de pilote de System32"
+        $hostSystem32 = Join-Path $env:SystemRoot "System32"
+        $guestSystem32 = Join-Path $volumeRoot "Windows\System32"
+        $guestDrivers = Join-Path $guestSystem32 "drivers"
+        New-Item -ItemType Directory -Path $guestDrivers -Force | Out-Null
+
+        $looseFilesCopied = 0
+        $packageFileNames = Get-ChildItem -Path $driverInfo.packageFolder -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Name -Unique
+        foreach ($fileName in $packageFileNames) {
+            foreach ($pair in @(
+                @{ Source = Join-Path $hostSystem32 $fileName;             Dest = $guestSystem32 },
+                @{ Source = Join-Path $hostSystem32 "drivers\$fileName";   Dest = $guestDrivers }
+            )) {
+                if (Test-Path -LiteralPath $pair.Source -PathType Leaf) {
+                    # -Force : ecrase une version precedente (mise a jour du pilote
+                    # hote). Best-effort par fichier : un seul fichier verrouille ou
+                    # refuse ne doit pas faire echouer toute la preparation.
+                    try {
+                        Copy-Item -LiteralPath $pair.Source -Destination $pair.Dest -Force -ErrorAction Stop
+                        $looseFilesCopied++
+                    } catch { }
+                }
+            }
         }
 
         # --- Etape 2 : copie de la cle de registre de la classe d'affichage ---
@@ -133,9 +179,10 @@ Invoke-NovaAction {
             providerName       = $driverInfo.providerName
             registryIndex      = $registryIndex
             hostDriverStorePath = $destRepo
+            system32FilesCopied = $looseFilesCopied
             pnpAlreadyPresent  = [bool]$alreadyPresent
             pnpInstalledDriver = $pnpInstalled
-            message            = "HostDriverStore synchronise (magasin complet), configuration registre copiee (classe $registryIndex), enregistrement Plug-and-Play " + $(if ($alreadyPresent) { "deja a jour" } else { "effectue ($pnpInstalled)" }) + ". Redemarrez la VM pour verifier dans le Gestionnaire de peripheriques."
+            message            = "HostDriverStore synchronise (magasin complet), $looseFilesCopied fichier(s) de pilote copie(s) dans System32, configuration registre copiee (classe $registryIndex), enregistrement Plug-and-Play " + $(if ($alreadyPresent) { "deja a jour" } else { "effectue ($pnpInstalled)" }) + ". Redemarrez la VM pour verifier dans le Gestionnaire de peripheriques."
         }
         Write-NovaResult -Success $true -DataJson ([pscustomobject]$result | ConvertTo-Json -Compress)
     } finally {

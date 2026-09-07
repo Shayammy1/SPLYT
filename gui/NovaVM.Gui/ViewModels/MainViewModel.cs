@@ -23,6 +23,8 @@ public sealed class MainViewModel : ViewModelBase
     private EnhancedSessionFixDialogViewModel? _enhancedSessionFixDialog;
     private bool _isHyperVSetupDialogOpen;
     private HyperVSetupDialogViewModel? _hyperVSetupDialog;
+    private bool _isConfirmDialogOpen;
+    private ConfirmDialogViewModel? _confirmDialog;
 
     public MainViewModel(NovaVmService vmService, LogService log)
     {
@@ -45,6 +47,11 @@ public sealed class MainViewModel : ViewModelBase
         VmList.CreateVmRequested += async (_, _) => await OpenCreateVmDialogAsync();
         VmList.SunshineInstallRequested += (_, vmName) => OpenSunshineCredentialsDialog(vmName);
         VmList.EnhancedSessionFixRequested += (_, vmName) => OpenEnhancedSessionFixDialog(vmName);
+
+        // La VmList construit elle-meme sa boite de confirmation (elle seule sait ce
+        // que chaque choix doit declencher) ; la coquille se charge uniquement de
+        // l'afficher par-dessus toute la fenetre, comme les autres modales.
+        VmList.ConfirmRequested += (_, dialog) => OpenConfirmDialog(dialog);
 
         NavItems = new ObservableCollection<NavItem>
         {
@@ -104,14 +111,17 @@ public sealed class MainViewModel : ViewModelBase
     public bool IsHyperVSetupDialogOpen { get => _isHyperVSetupDialogOpen; private set => SetProperty(ref _isHyperVSetupDialogOpen, value); }
     public HyperVSetupDialogViewModel? HyperVSetupDialog { get => _hyperVSetupDialog; private set => SetProperty(ref _hyperVSetupDialog, value); }
 
+    public bool IsConfirmDialogOpen { get => _isConfirmDialogOpen; private set => SetProperty(ref _isConfirmDialogOpen, value); }
+    public ConfirmDialogViewModel? ConfirmDialog { get => _confirmDialog; private set => SetProperty(ref _confirmDialog, value); }
+
     public AsyncRelayCommand OpenCreateVmDialogCommand { get; }
     public RelayCommand CloseCreateVmDialogCommand { get; }
 
     private async Task OpenCreateVmDialogAsync()
     {
         var gpus = await _vmService.GetHostGpusAsync();
-        var memoryLimits = await _vmService.GetHostMemoryLimitsAsync();
-        var dialog = new CreateVmDialogViewModel(_vmService, gpus, memoryLimits);
+        var hostLimits = await _vmService.GetHostLimitsAsync();
+        var dialog = new CreateVmDialogViewModel(_vmService, gpus, hostLimits);
         dialog.Created += (_, _) =>
         {
             if (dialog.CreatedVm is not null) VmList.AddCreatedVm(dialog.CreatedVm);
@@ -120,6 +130,15 @@ public sealed class MainViewModel : ViewModelBase
         dialog.Cancelled += (_, _) => IsCreateDialogOpen = false;
         CreateVmDialog = dialog;
         IsCreateDialogOpen = true;
+    }
+
+    /// <summary>La boite se referme sur n'importe quel choix : c'est le handler
+    /// Closed pose par l'appelant (VmList) qui decide de l'action, pas la coquille.</summary>
+    private void OpenConfirmDialog(ConfirmDialogViewModel dialog)
+    {
+        dialog.Closed += (_, _) => IsConfirmDialogOpen = false;
+        ConfirmDialog = dialog;
+        IsConfirmDialogOpen = true;
     }
 
     private void OpenSunshineCredentialsDialog(string vmName)

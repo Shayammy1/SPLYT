@@ -13,7 +13,7 @@ public sealed class VmListViewModel : ViewModelBase
 
     private readonly NovaVmService _vmService;
     private VirtualMachine? _selectedVm;
-    private HostMemoryLimits _memoryLimits = HostMemoryLimits.Default;
+    private HostLimits _hostLimits = HostLimits.Default;
 
     private int _editCpu;
     private double _editMemoryGb;
@@ -30,6 +30,9 @@ public sealed class VmListViewModel : ViewModelBase
     private string? _gamingResultText;
     private string? _nvidiaDriverInstallerPath;
     private string? _nvidiaPatchResultText;
+    private IReadOnlyList<HostGpu> _hostGpus = Array.Empty<HostGpu>();
+    private bool _isInstallingGpuDriver;
+    private string? _gpuDriverInstallStep;
 
     public VmListViewModel(NovaVmService vmService)
     {
@@ -38,9 +41,8 @@ public sealed class VmListViewModel : ViewModelBase
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
         OpenCreateVmDialogCommand = new RelayCommand(() => CreateVmRequested?.Invoke(this, EventArgs.Empty));
         StartCommand = new AsyncRelayCommand(() => ChangeStateAsync(_vmService.StartVmAsync), () => SelectedVm is { State: VmState.Off or VmState.Saved or VmState.Error });
-        StopCommand = new AsyncRelayCommand(() => ChangeStateAsync(_vmService.StopVmAsync), () => SelectedVm is { State: VmState.Running });
-        ForceStopCommand = new AsyncRelayCommand(() => ChangeStateAsync(_vmService.ForceStopVmAsync), () => SelectedVm is { State: VmState.Running });
-        DeleteCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedVm is not null);
+        StopCommand = new RelayCommand(AskHowToStop, () => SelectedVm is { State: VmState.Running });
+        DeleteCommand = new RelayCommand(AskDeleteConfirmation, () => SelectedVm is not null);
         SaveResourcesCommand = new AsyncRelayCommand(SaveResourcesAsync, () => SelectedVm is not null);
         SaveGpuCommand = new AsyncRelayCommand(SaveGpuAsync, () => SelectedVm is not null);
         RunGpuDiagnosticsCommand = new AsyncRelayCommand(RunGpuDiagnosticsAsync, () => SelectedVm is not null);
@@ -103,9 +105,14 @@ public sealed class VmListViewModel : ViewModelBase
         }
     }
 
-    public double TotalPhysicalRamGb => _memoryLimits.TotalPhysicalGb;
-    public double MaxMemoryGb => _memoryLimits.MaxVmMemoryGb;
+    public double TotalPhysicalRamGb => _hostLimits.TotalPhysicalGb;
+    public double MaxMemoryGb => _hostLimits.MaxVmMemoryGb;
     public bool ShowRamWarning => EditMemoryGb > TotalPhysicalRamGb * 0.75;
+
+    /// <summary>Borne haute reelle du curseur vCPU - voir HostLimits.MaxVmCpu.</summary>
+    public int MaxCpu => _hostLimits.MaxVmCpu;
+    public int CpuCores => _hostLimits.CpuCores;
+    public int CpuLogicalProcessors => _hostLimits.CpuLogicalProcessors;
 
     /// <summary>Decoche par defaut : la RAM configuree reste toujours entierement
     /// assignee a la VM. Cochee, Hyper-V n'assigne que la RAM reellement utilisee
@@ -121,6 +128,10 @@ public sealed class VmListViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(EditGpuSelection));
                 OnPropertyChanged(nameof(IsNvidiaGpuSelected));
+                OnPropertyChanged(nameof(HasDedicatedVram));
+                OnPropertyChanged(nameof(NoDedicatedVram));
+                OnPropertyChanged(nameof(MaxGpuVramMb));
+                if (EditGpuVramMb > MaxGpuVramMb) EditGpuVramMb = MaxGpuVramMb;
                 InstallGpuDriverCommand.RaiseCanExecuteChanged();
                 PatchNvidiaGpuDriverCommand.RaiseCanExecuteChanged();
             }
@@ -142,6 +153,36 @@ public sealed class VmListViewModel : ViewModelBase
     }
 
     public int EditGpuVramMb { get => _editGpuVramMb; set => SetProperty(ref _editGpuVramMb, value); }
+
+    /// <summary>GPU hote correspondant a EditGpuName (null si "Aucun" ou introuvable).</summary>
+    private HostGpu? SelectedHostGpu =>
+        string.IsNullOrWhiteSpace(EditGpuName) ? null : _hostGpus.FirstOrDefault(g => g.Name == EditGpuName);
+
+    /// <summary>Faux pour un GPU integre (aucune VRAM dediee, il puise dans la RAM
+    /// systeme) : le curseur "VRAM allouee" n'a alors rien de reel a doser et reste
+    /// desactive - voir la meme propriete dans CreateVmDialogViewModel.</summary>
+    public bool HasDedicatedVram => (SelectedHostGpu?.VramBytes ?? 0) > 0;
+    public bool NoDedicatedVram => !HasDedicatedVram;
+
+    /// <summary>Plafond du curseur VRAM : la VRAM reelle du GPU selectionne.</summary>
+    public int MaxGpuVramMb
+    {
+        get
+        {
+            var vramBytes = SelectedHostGpu?.VramBytes ?? 0;
+            if (vramBytes <= 0) return 512;
+            return Math.Max(512, (int)(vramBytes / 1024 / 1024));
+        }
+    }
+
+    /// <summary>Vrai pendant toute la preparation du pilote GPU-P (plusieurs minutes :
+    /// la copie du magasin de pilotes represente plusieurs Go) - alimente une barre de
+    /// progression reelle, alimentee par les etapes du script.</summary>
+    public bool IsInstallingGpuDriver { get => _isInstallingGpuDriver; private set => SetProperty(ref _isInstallingGpuDriver, value); }
+
+    /// <summary>Libelle de l'etape en cours de Install-NovaVmGpuDriver.ps1 (voir
+    /// Write-NovaProgress), ou null hors installation.</summary>
+    public string? GpuDriverInstallStep { get => _gpuDriverInstallStep; private set => SetProperty(ref _gpuDriverInstallStep, value); }
 
     /// <summary>Texte du dernier diagnostic GPU-P (voir RunGpuDiagnosticsCommand),
     /// ou null tant qu'aucun diagnostic n'a ete lance pour la VM selectionnee.</summary>
@@ -226,9 +267,16 @@ public sealed class VmListViewModel : ViewModelBase
     public AsyncRelayCommand RefreshCommand { get; }
     public RelayCommand OpenCreateVmDialogCommand { get; }
     public AsyncRelayCommand StartCommand { get; }
-    public AsyncRelayCommand StopCommand { get; }
-    public AsyncRelayCommand ForceStopCommand { get; }
-    public AsyncRelayCommand DeleteCommand { get; }
+
+    /// <summary>N'arrete pas directement : demande d'abord LEQUEL des deux arrets
+    /// (classique ou force) l'utilisateur veut, via une boite de confirmation - les
+    /// deux boutons distincts d'avant ne disaient pas assez clairement ce qu'ils
+    /// faisaient et l'arret force etait a un clic de distance sans avertissement.</summary>
+    public RelayCommand StopCommand { get; }
+
+    /// <summary>Demande confirmation avant de supprimer : l'operation efface aussi le
+    /// disque virtuel et n'est pas annulable.</summary>
+    public RelayCommand DeleteCommand { get; }
     public AsyncRelayCommand SaveResourcesCommand { get; }
     public AsyncRelayCommand SaveGpuCommand { get; }
     public AsyncRelayCommand RunGpuDiagnosticsCommand { get; }
@@ -249,6 +297,11 @@ public sealed class VmListViewModel : ViewModelBase
     public event EventHandler? CreateVmRequested;
     public event EventHandler<string>? SunshineInstallRequested;
     public event EventHandler<string>? EnhancedSessionFixRequested;
+
+    /// <summary>Demande a la coquille (MainViewModel) d'afficher la boite de
+    /// confirmation fournie par-dessus toute la fenetre : cette vue ne connait pas
+    /// la mecanique des modales, comme pour CreateVmRequested.</summary>
+    public event EventHandler<ConfirmDialogViewModel>? ConfirmRequested;
 
     /// <summary>Appele par MainViewModel une fois la boite de dialogue d'identifiants
     /// terminee avec succes, pour afficher le resultat (etapes restantes : PIN
@@ -276,6 +329,7 @@ public sealed class VmListViewModel : ViewModelBase
             foreach (var vm in vms) Vms.Add(vm);
 
             var gpus = await _vmService.GetHostGpusAsync();
+            _hostGpus = gpus;
             AvailableGpus.Clear();
             GpuDropdownOptions.Clear();
             GpuDropdownOptions.Add(NoGpuLabel);
@@ -285,10 +339,13 @@ public sealed class VmListViewModel : ViewModelBase
                 GpuDropdownOptions.Add(gpu.Name);
             }
 
-            _memoryLimits = await _vmService.GetHostMemoryLimitsAsync();
+            _hostLimits = await _vmService.GetHostLimitsAsync();
             OnPropertyChanged(nameof(TotalPhysicalRamGb));
             OnPropertyChanged(nameof(MaxMemoryGb));
             OnPropertyChanged(nameof(ShowRamWarning));
+            OnPropertyChanged(nameof(MaxCpu));
+            OnPropertyChanged(nameof(CpuCores));
+            OnPropertyChanged(nameof(CpuLogicalProcessors));
 
             SelectedVm = selectedName is null
                 ? Vms.FirstOrDefault()
@@ -345,6 +402,45 @@ public sealed class VmListViewModel : ViewModelBase
         var updated = await action(SelectedVm.Name);
         if (updated is not null) SelectedVm.UpdateFrom(ToDto(updated));
         RaiseAllCanExecuteChanged();
+    }
+
+    private void AskHowToStop()
+    {
+        if (SelectedVm is null) return;
+        var name = SelectedVm.Name;
+
+        var dialog = new ConfirmDialogViewModel(
+            Loc.Get("VmList_StopChoice_Title"),
+            Loc.Get("VmList_StopChoice_Message", name),
+            primaryLabel: Loc.Get("VmList_StopChoice_Normal"),
+            secondaryLabel: Loc.Get("VmList_StopChoice_Forced"));
+
+        dialog.Closed += async (_, choice) =>
+        {
+            if (choice == ConfirmChoice.Primary) await ChangeStateAsync(_vmService.StopVmAsync);
+            else if (choice == ConfirmChoice.Secondary) await ChangeStateAsync(_vmService.ForceStopVmAsync);
+        };
+
+        ConfirmRequested?.Invoke(this, dialog);
+    }
+
+    private void AskDeleteConfirmation()
+    {
+        if (SelectedVm is null) return;
+        var name = SelectedVm.Name;
+
+        var dialog = new ConfirmDialogViewModel(
+            Loc.Get("VmList_DeleteConfirm_Title"),
+            Loc.Get("VmList_DeleteConfirm_Message", name),
+            primaryLabel: Loc.Get("Common_Delete"),
+            primaryIsDanger: true);
+
+        dialog.Closed += async (_, choice) =>
+        {
+            if (choice == ConfirmChoice.Primary) await DeleteSelectedAsync();
+        };
+
+        ConfirmRequested?.Invoke(this, dialog);
     }
 
     private async Task DeleteSelectedAsync()
@@ -433,14 +529,32 @@ public sealed class VmListViewModel : ViewModelBase
     {
         if (SelectedVm is null) return;
         ErrorMessage = null;
-        var (result, error) = await _vmService.InstallGpuDriverAsync(SelectedVm.Name);
-        if (result is null)
+        GpuDiagnosticsSummary = null;
+        GpuDriverInstallStep = Loc.Get("VmList_Gpu_InstallDriverInProgress");
+        IsInstallingGpuDriver = true;
+        try
         {
-            GpuDiagnosticsSummary = Loc.Get("Vm_DriverInstallFailed", error);
-            return;
-        }
+            var (result, error) = await _vmService.InstallGpuDriverAsync(SelectedVm.Name, OnGpuDriverInstallProgress);
+            if (result is null)
+            {
+                GpuDiagnosticsSummary = Loc.Get("Vm_DriverInstallFailed", error);
+                return;
+            }
 
-        GpuDiagnosticsSummary = Loc.Get("Vm_DriverInstallSummary", result.Message, result.HostDriverStorePath);
+            GpuDiagnosticsSummary = Loc.Get("Vm_DriverInstallSummary", result.Message, result.HostDriverStorePath);
+        }
+        finally
+        {
+            IsInstallingGpuDriver = false;
+            GpuDriverInstallStep = null;
+        }
+    }
+
+    /// <summary>Appele depuis le thread qui suit la sortie du script eleve (pas le
+    /// thread UI) : on repasse par le Dispatcher avant de toucher une propriete liee.</summary>
+    private void OnGpuDriverInstallProgress(string step)
+    {
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => { GpuDriverInstallStep = step; });
     }
 
     private async Task RunDisplayDiagnosticsAsync()
@@ -582,7 +696,6 @@ public sealed class VmListViewModel : ViewModelBase
     {
         StartCommand.RaiseCanExecuteChanged();
         StopCommand.RaiseCanExecuteChanged();
-        ForceStopCommand.RaiseCanExecuteChanged();
         DeleteCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();
         OpenEnhancedSessionFixDialogCommand.RaiseCanExecuteChanged();

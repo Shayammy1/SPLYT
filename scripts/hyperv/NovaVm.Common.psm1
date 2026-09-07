@@ -114,9 +114,62 @@ function Get-NovaHostMemoryInfo {
     $reservedForHostMb = 2048
     $maxVmMemoryMb = [math]::Max(1024, $totalMb - $reservedForHostMb)
 
+    # Coeurs PHYSIQUES et processeurs LOGIQUES (threads) reels, additionnes sur
+    # tous les sockets. Hyper-V accepte techniquement jusqu'au nombre de
+    # processeurs logiques, mais la GUI borne le curseur vCPU aux coeurs
+    # physiques : au-dela, les vCPU se partagent les memes coeurs physiques, ce
+    # qui degrade les performances au lieu de les ameliorer (contre-productif
+    # pour l'usage vise, du jeu dans la VM) - et 8 coeurs qui proposent 16 vCPU
+    # est trompeur. Les deux valeurs sont remontees pour pouvoir afficher le
+    # detail ("8 coeurs / 16 threads") plutot qu'un chiffre sans contexte.
+    $processors = @(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue)
+    $cores = 0
+    $logical = 0
+    foreach ($cpu in $processors) {
+        if ($cpu.NumberOfCores) { $cores += [int]$cpu.NumberOfCores }
+        if ($cpu.NumberOfLogicalProcessors) { $logical += [int]$cpu.NumberOfLogicalProcessors }
+    }
+    # Repli si WMI ne repond pas : [Environment]::ProcessorCount est toujours
+    # disponible (processeurs logiques), jamais 0.
+    if ($logical -le 0) { $logical = [Environment]::ProcessorCount }
+    if ($cores -le 0) { $cores = $logical }
+
     [ordered]@{
-        totalPhysicalMb = [int64]$totalMb
-        maxVmMemoryMb   = [int64]$maxVmMemoryMb
+        totalPhysicalMb      = [int64]$totalMb
+        maxVmMemoryMb        = [int64]$maxVmMemoryMb
+        cpuCores             = [int]$cores
+        cpuLogicalProcessors = [int]$logical
+    }
+}
+
+# Ferme la fenetre de l'Explorateur que Windows ouvre automatiquement au
+# montage d'un VHD/VHDX (notification d'arrivee de volume) : elle passe au
+# premier plan et vole le focus en pleine operation SPLYT, alors que le volume
+# concerne sera demonte quelques secondes/minutes plus tard - la fenetre
+# deviendrait morte de toute facon. On ne ferme QUE celles qui pointent vers
+# la lettre de lecteur qu'on vient de monter, jamais une fenetre ouverte par
+# l'utilisateur ailleurs. Best-effort : ne doit jamais faire echouer
+# l'operation en cours.
+function Close-NovaMountedVolumeExplorerWindow {
+    param([Parameter(Mandatory)][string]$DriveLetter)
+
+    try {
+        $shell = New-Object -ComObject Shell.Application
+        foreach ($window in @($shell.Windows())) {
+            try {
+                $location = $window.LocationURL
+                # LocationURL d'un dossier local ressemble a "file:///E:/..." :
+                # on cible la lettre de lecteur exacte, rien d'autre.
+                if ($location -and $location -match "^file:///$([regex]::Escape($DriveLetter)):") {
+                    $window.Quit()
+                }
+            } catch {
+                # Fenetre disparue entre l'enumeration et l'appel : sans importance.
+            }
+        }
+    } catch {
+        # Shell.Application indisponible (session sans Explorateur, par exemple) :
+        # il n'y avait alors aucune fenetre a fermer.
     }
 }
 
@@ -380,6 +433,7 @@ Export-ModuleMember -Function `
     Invoke-NovaAction, `
     Get-NovaDataStorePath, `
     Get-NovaHostMemoryInfo, `
+    Close-NovaMountedVolumeExplorerWindow, `
     Get-NovaVmPreferences, `
     Save-NovaVmPreferences, `
     Remove-NovaVmPreferences, `

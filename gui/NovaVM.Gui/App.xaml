@@ -58,6 +58,9 @@
             <DataTemplate DataType="{x:Type vm:HyperVSetupDialogViewModel}">
                 <controls:HyperVSetupDialog />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ConfirmDialogViewModel}">
+                <controls:ConfirmDialog />
+            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

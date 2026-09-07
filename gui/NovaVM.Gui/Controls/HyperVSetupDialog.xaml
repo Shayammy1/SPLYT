@@ -25,7 +25,7 @@
                     </TextBlock>
 
                     <StackPanel Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,0,0,10">
-                        <TextBlock Text="{markup:Tr HyperV_InProgress}" FontSize="12"
+                        <TextBlock Text="{markup:Tr HyperV_InProgress}" FontSize="12" TextWrapping="Wrap"
                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" />
                         <ProgressBar IsIndeterminate="True" Height="6" />
                     </StackPanel>

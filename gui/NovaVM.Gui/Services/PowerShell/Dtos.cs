@@ -29,10 +29,12 @@ public sealed class VirtualMachineDto
     public string? LastError { get; set; }
 }
 
-public sealed class HostMemoryLimitsDto
+public sealed class HostLimitsDto
 {
     public long TotalPhysicalMb { get; set; }
     public long MaxVmMemoryMb { get; set; }
+    public int CpuCores { get; set; }
+    public int CpuLogicalProcessors { get; set; }
 }
 
 public sealed class HostGpuDto

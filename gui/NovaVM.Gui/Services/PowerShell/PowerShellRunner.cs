@@ -21,10 +21,15 @@ public interface IPowerShellRunner
     /// qui exigent l'appartenance au groupe Administrateurs local, independamment
     /// des droits Hyper-V Administrateurs deja suffisants pour le reste de l'appli.
     /// Verb=runas est incompatible avec la redirection directe de flux .NET :
-    /// le script eleve ecrit donc lui-meme sa sortie dans un fichier temporaire,
-    /// relu une fois le processus termine. Pas de progression en direct possible
-    /// dans ce mode (l'invite UAC elle-meme signale deja qu'une action lourde
-    /// est en cours) ; le resultat final reste complet.</summary>
+    /// le script eleve ecrit donc lui-meme sa sortie dans un fichier temporaire.
+    /// Si onProgress est fourni, ce fichier est relu au fil de l'eau pendant
+    /// l'execution pour rapporter les etapes reellement franchies (voir
+    /// Write-NovaProgress) - la progression reste donc reelle, jamais simulee,
+    /// meme dans ce mode.</summary>
+    Task<PowerShellResult> RunElevatedAsync(
+        string scriptFileName, Action<string>? onProgress, params (string Name, string Value)[] parameters);
+
+    /// <summary>RunElevatedAsync sans suivi de progression.</summary>
     Task<PowerShellResult> RunElevatedAsync(string scriptFileName, params (string Name, string Value)[] parameters);
 
     /// <summary>Lance le script en lui transmettant nom d'utilisateur et mot de
@@ -186,8 +191,12 @@ public sealed class PowerShellRunner : IPowerShellRunner
         return PowerShellResult.Parse(stdout.ToString(), stderr.ToString(), process.ExitCode);
     }
 
+    public Task<PowerShellResult> RunElevatedAsync(
+        string scriptFileName, params (string Name, string Value)[] parameters) =>
+        RunElevatedAsync(scriptFileName, onProgress: null, parameters);
+
     public async Task<PowerShellResult> RunElevatedAsync(
-        string scriptFileName, params (string Name, string Value)[] parameters)
+        string scriptFileName, Action<string>? onProgress, params (string Name, string Value)[] parameters)
     {
         var scriptPath = Path.Combine(_scriptsRoot, scriptFileName);
         if (!File.Exists(scriptPath))
@@ -227,6 +236,12 @@ public sealed class PowerShellRunner : IPowerShellRunner
             {
                 return PowerShellResult.Failed("Impossible de lancer powershell.exe (eleve).");
             }
+
+            if (onProgress is not null)
+            {
+                await FollowProgressFileAsync(outputFile, onProgress, process);
+            }
+
             await process.WaitForExitAsync();
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
@@ -250,6 +265,56 @@ public sealed class PowerShellRunner : IPowerShellRunner
         }
 
         return PowerShellResult.Parse(output, "", 0);
+    }
+
+    /// <summary>Suit le fichier de sortie d'un script ELEVE pendant son execution et
+    /// rapporte chaque ligne de progression au fur et a mesure. En mode eleve les flux
+    /// ne peuvent pas etre rediriges directement (Verb=runas), mais le fichier, lui,
+    /// est ecrit en continu : le relire periodiquement donne une progression tout aussi
+    /// reelle, juste avec un leger decalage.
+    ///
+    /// FileShare.ReadWrite est indispensable : le processus eleve garde le fichier
+    /// ouvert en ecriture, une ouverture en lecture exclusive echouerait a chaque fois.</summary>
+    private static async Task FollowProgressFileAsync(string path, Action<string> onProgress, Process process)
+    {
+        var lastPosition = 0L;
+        var pending = new StringBuilder();
+
+        while (!process.HasExited)
+        {
+            await Task.Delay(400);
+
+            try
+            {
+                if (!File.Exists(path)) continue;
+
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stream.Length <= lastPosition) continue;
+
+                stream.Seek(lastPosition, SeekOrigin.Begin);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                var chunk = await reader.ReadToEndAsync();
+                lastPosition = stream.Position;
+
+                pending.Append(chunk);
+                var text = pending.ToString();
+                var lastNewline = text.LastIndexOf('\n');
+                if (lastNewline < 0) continue;
+
+                // Ne traite que les lignes COMPLETES : la derniere, potentiellement
+                // coupee en plein milieu d'ecriture, est gardee pour le tour suivant.
+                foreach (var line in text[..lastNewline].Split('\n'))
+                {
+                    TryReportProgress(line, onProgress);
+                }
+                pending.Clear();
+                pending.Append(text[(lastNewline + 1)..]);
+            }
+            catch (IOException)
+            {
+                // Fichier momentanement verrouille : on reessaie au tour suivant.
+            }
+        }
     }
 
     /// <summary>Met entre quotes simples pour PowerShell, en doublant les quotes

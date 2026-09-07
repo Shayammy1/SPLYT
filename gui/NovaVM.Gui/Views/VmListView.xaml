@@ -106,9 +106,6 @@
                             <Button Content="{markup:Tr VmList_Stop}" Style="{StaticResource GhostButtonStyle}"
                                     Command="{Binding StopCommand}" Margin="0,0,8,0"
                                     ToolTip="{markup:Tr VmList_Stop_Tooltip}" />
-                            <Button Content="{markup:Tr VmList_ForceStop}" Style="{StaticResource GhostButtonStyle}"
-                                    Command="{Binding ForceStopCommand}" Margin="0,0,8,0"
-                                    ToolTip="{markup:Tr VmList_ForceStop_Tooltip}" />
                             <Button Content="{markup:Tr Common_Delete}" Style="{StaticResource DangerButtonStyle}"
                                     Command="{Binding DeleteCommand}" />
                         </StackPanel>
@@ -144,14 +141,17 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
                                 <TextBlock Text="{markup:Tr VmList_Res_Vcpu}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
-                                <Grid Margin="0,6,0,18">
+                                <Grid Margin="0,6,0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="40" />
                                     </Grid.ColumnDefinitions>
-                                    <Slider Minimum="1" Maximum="16" Value="{Binding EditCpu}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <Slider Minimum="1" Maximum="{Binding MaxCpu}" Value="{Binding EditCpu}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="{Binding EditCpu}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
                                 </Grid>
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,18">
+                                    <Run Text="{markup:Tr VmList_Res_CpuDetected}" /><Run Text="{Binding CpuCores, Mode=OneWay}" /><Run Text="{markup:Tr VmList_Res_CpuCores}" /><Run Text="{Binding CpuLogicalProcessors, Mode=OneWay}" /><Run Text="{markup:Tr VmList_Res_CpuThreads}" />
+                                </TextBlock>
 
                                 <TextBlock Text="{markup:Tr VmList_Res_Ram}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
                                 <Grid Margin="0,6,0,4">
@@ -225,15 +225,20 @@
                                           Margin="0,6,0,18" />
 
                                 <TextBlock Text="{markup:Tr VmList_Gpu_VramAllocated}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
-                                <Grid Margin="0,6,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="60" />
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Minimum="512" Maximum="16384" Value="{Binding EditGpuVramMb}" TickFrequency="512"
-                                            IsSnapToTickEnabled="True" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding EditGpuVramMb}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                </Grid>
+                                <StackPanel Margin="0,6,0,18">
+                                    <Grid IsEnabled="{Binding HasDedicatedVram}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="60" />
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Minimum="512" Maximum="{Binding MaxGpuVramMb}" Value="{Binding EditGpuVramMb}" TickFrequency="512"
+                                                IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding EditGpuVramMb}" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <TextBlock Text="{markup:Tr VmList_Gpu_NoDedicatedVram}" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"
+                                               Visibility="{Binding NoDedicatedVram, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                </StackPanel>
 
                                 <WrapPanel Orientation="Horizontal">
                                     <Button Content="{markup:Tr Common_Save}" Style="{StaticResource AccentButtonStyle}"
@@ -244,6 +249,15 @@
                                             Command="{Binding InstallGpuDriverCommand}" Margin="0,0,8,8"
                                             ToolTip="{markup:Tr VmList_Gpu_InstallDriver_Tooltip}" />
                                 </WrapPanel>
+
+                                <!-- Progression reelle de la preparation du pilote (etapes remontees
+                                     par le script eleve, voir PowerShellRunner.FollowProgressFileAsync). -->
+                                <StackPanel Margin="0,4,0,0"
+                                            Visibility="{Binding IsInstallingGpuDriver, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBlock Text="{Binding GpuDriverInstallStep}" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" />
+                                    <ProgressBar IsIndeterminate="True" Height="6" />
+                                </StackPanel>
 
                                 <TextBlock Text="{Binding GpuDiagnosticsSummary}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
                                            Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,0"

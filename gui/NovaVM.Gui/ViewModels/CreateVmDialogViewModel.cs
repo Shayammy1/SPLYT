@@ -12,7 +12,8 @@ namespace NovaVM.Gui.ViewModels;
 public sealed class CreateVmDialogViewModel : ViewModelBase
 {
     private readonly NovaVmService _vmService;
-    private readonly HostMemoryLimits _memoryLimits;
+    private readonly HostLimits _hostLimits;
+    private readonly IReadOnlyList<HostGpu> _hostGpus;
     private readonly Dispatcher _uiDispatcher;
 
     private string _name = "";
@@ -48,10 +49,11 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
         "Finalisation",
     };
 
-    public CreateVmDialogViewModel(NovaVmService vmService, IReadOnlyList<HostGpu> hostGpus, HostMemoryLimits memoryLimits)
+    public CreateVmDialogViewModel(NovaVmService vmService, IReadOnlyList<HostGpu> hostGpus, HostLimits hostLimits)
     {
         _vmService = vmService;
-        _memoryLimits = memoryLimits;
+        _hostLimits = hostLimits;
+        _hostGpus = hostGpus;
         _uiDispatcher = Dispatcher.CurrentDispatcher;
 
         AvailableGpus.Add(AutoGpuOption);
@@ -64,6 +66,8 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
         // Valeur par defaut adaptee a la machine : jamais plus que la moitie de
         // la limite raisonnable, jamais plus que la limite elle-meme.
         _memoryGb = Math.Min(8, Math.Max(1, MaxMemoryGb / 2));
+        _cpu = Math.Min(_cpu, MaxCpu);
+        _gpuVramMb = Math.Min(_gpuVramMb, MaxGpuVramMb);
 
         // Une ISO Windows 11 deja telechargee (creation de VM precedente, ou telechargement
         // lance depuis cette meme fenetre) est reutilisee automatiquement : l'utilisateur n'a
@@ -83,8 +87,14 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
 
     public ObservableCollection<string> AvailableGpus { get; } = new();
 
-    public double TotalPhysicalRamGb => _memoryLimits.TotalPhysicalGb;
-    public double MaxMemoryGb => _memoryLimits.MaxVmMemoryGb;
+    public double TotalPhysicalRamGb => _hostLimits.TotalPhysicalGb;
+    public double MaxMemoryGb => _hostLimits.MaxVmMemoryGb;
+
+    /// <summary>Borne haute reelle du curseur vCPU (coeurs physiques de cet hote) -
+    /// voir HostLimits.MaxVmCpu pour le pourquoi des coeurs plutot que des threads.</summary>
+    public int MaxCpu => _hostLimits.MaxVmCpu;
+    public int CpuCores => _hostLimits.CpuCores;
+    public int CpuLogicalProcessors => _hostLimits.CpuLogicalProcessors;
 
     public string Name { get => _name; set => SetProperty(ref _name, value); }
     public int Cpu { get => _cpu; set => SetProperty(ref _cpu, value); }
@@ -117,8 +127,56 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
     /// atteinte par le script (voir OnCreationProgress) - jamais simule par le temps.</summary>
     public double ProgressPercent { get => _progressPercent; private set => SetProperty(ref _progressPercent, value); }
 
-    public string SelectedGpu { get => _selectedGpu; set => SetProperty(ref _selectedGpu, value); }
+    public string SelectedGpu
+    {
+        get => _selectedGpu;
+        set
+        {
+            if (SetProperty(ref _selectedGpu, value))
+            {
+                OnPropertyChanged(nameof(HasDedicatedVram));
+                OnPropertyChanged(nameof(NoDedicatedVram));
+                OnPropertyChanged(nameof(MaxGpuVramMb));
+                if (GpuVramMb > MaxGpuVramMb) GpuVramMb = MaxGpuVramMb;
+            }
+        }
+    }
+
     public int GpuVramMb { get => _gpuVramMb; set => SetProperty(ref _gpuVramMb, value); }
+
+    /// <summary>GPU hote reellement vise par la selection courante ("Auto" resolu,
+    /// null pour "Aucun" ou un nom inconnu).</summary>
+    private HostGpu? SelectedHostGpu
+    {
+        get
+        {
+            if (SelectedGpu == NoGpuOption) return null;
+            var name = SelectedGpu == AutoGpuOption ? _autoSelectedGpu : SelectedGpu;
+            return name is null ? null : _hostGpus.FirstOrDefault(g => g.Name == name);
+        }
+    }
+
+    /// <summary>Faux pour un GPU integre (aucune VRAM dediee : il puise dans la RAM
+    /// systeme, et le registre du pilote ne rapporte alors aucune taille) - dans ce
+    /// cas le curseur "VRAM allouee" n'a rien de reel a doser et reste desactive,
+    /// plutot que de laisser croire a un reglage qui ne veut rien dire.</summary>
+    public bool HasDedicatedVram => (SelectedHostGpu?.VramBytes ?? 0) > 0;
+
+    /// <summary>Inverse de HasDedicatedVram (voir NoIsoYet pour la meme raison :
+    /// BoolToVisibilityConverter ne sait pas inverser).</summary>
+    public bool NoDedicatedVram => !HasDedicatedVram;
+
+    /// <summary>Plafond du curseur VRAM : la VRAM reelle du GPU selectionne, jamais
+    /// une valeur arbitraire superieure a ce que la carte possede.</summary>
+    public int MaxGpuVramMb
+    {
+        get
+        {
+            var vramBytes = SelectedHostGpu?.VramBytes ?? 0;
+            if (vramBytes <= 0) return 512;
+            return Math.Max(512, (int)(vramBytes / 1024 / 1024));
+        }
+    }
     public string? IsoPath
     {
         get => _isoPath;

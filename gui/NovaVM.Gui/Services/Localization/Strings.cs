@@ -81,8 +81,12 @@ internal static class Strings
         ["VmList_Start"] = "Demarrer",
         ["VmList_Stop"] = "Arreter",
         ["VmList_Stop_Tooltip"] = "Arret normal (equivalent a demarrer l'arret depuis le menu Demarrer de Windows).",
-        ["VmList_ForceStop"] = "Arret force",
-        ["VmList_ForceStop_Tooltip"] = "Coupure franche (equivalent a rester appuye sur le bouton d'alimentation). A utiliser si l'arret normal ne repond pas.",
+        ["VmList_StopChoice_Title"] = "Arreter la VM",
+        ["VmList_StopChoice_Message"] = "Comment voulez-vous arreter '{0}' ?\n\nArret classique : demande a Windows de s'arreter proprement, comme depuis son menu Demarrer (rien n'est perdu).\n\nArret force : coupe l'alimentation immediatement, comme un appui long sur le bouton d'alimentation. A n'utiliser que si l'arret classique ne repond pas - le travail non enregistre dans la VM sera perdu.",
+        ["VmList_StopChoice_Normal"] = "Arret classique",
+        ["VmList_StopChoice_Forced"] = "Arret force",
+        ["VmList_DeleteConfirm_Title"] = "Supprimer la VM",
+        ["VmList_DeleteConfirm_Message"] = "Supprimer definitivement la VM '{0}' ?\n\nSa configuration Hyper-V et son disque virtuel seront effaces. Cette action est irreversible.",
         ["VmList_IsoMounted"] = "ISO montee : ",
         ["VmList_NoSelection"] = "Selectionnez une VM ou creez-en une nouvelle.",
 
@@ -94,6 +98,9 @@ internal static class Strings
         ["VmList_Res_PhysicalRamDetected"] = "RAM physique detectee : ",
         ["VmList_Res_MaxForVm"] = " Go - maximum pour une VM : ",
         ["VmList_Res_RamWarning"] = "Attention : vous attribuez une grande partie de la RAM de cet ordinateur a la VM.",
+        ["VmList_Res_CpuDetected"] = "Processeur detecte : ",
+        ["VmList_Res_CpuCores"] = " coeurs physiques (",
+        ["VmList_Res_CpuThreads"] = " threads) - le maximum pour une VM est limite aux coeurs physiques.",
 
         ["VmList_Credentials_UsernameLabel"] = "Nom d'utilisateur : compte local Windows OU compte Microsoft",
         ["VmList_Credentials_PasswordLabel"] = "Mot de passe",
@@ -113,6 +120,8 @@ internal static class Strings
 
         ["VmList_Gpu_Partitioned"] = "GPU partitionne",
         ["VmList_Gpu_VramAllocated"] = "VRAM allouee (Mo)",
+        ["VmList_Gpu_NoDedicatedVram"] = "Ce GPU n'a pas de VRAM dediee (processeur graphique integre : il puise dans la RAM systeme). Il n'y a donc rien a doser ici - Hyper-V repartit automatiquement la memoire graphique entre l'hote et la VM.",
+        ["VmList_Gpu_InstallDriverInProgress"] = "Preparation du pilote GPU-P en cours - la copie du magasin de pilotes represente plusieurs Go, comptez quelques minutes. Ne fermez pas SPLYT.",
         ["VmList_Gpu_InstallDriver"] = "Installer le pilote",
         ["VmList_Gpu_InstallDriver_Tooltip"] = "Copie hors-ligne le pilote du GPU hote dans le disque de la VM (DISM). Necessite une elevation (invite administrateur) et que la VM soit eteinte.",
 
@@ -302,8 +311,12 @@ internal static class Strings
         ["VmList_Start"] = "Start",
         ["VmList_Stop"] = "Stop",
         ["VmList_Stop_Tooltip"] = "Normal shutdown (equivalent to starting a shutdown from Windows' Start menu).",
-        ["VmList_ForceStop"] = "Force stop",
-        ["VmList_ForceStop_Tooltip"] = "Hard cutoff (equivalent to holding down the power button). Use if normal shutdown doesn't respond.",
+        ["VmList_StopChoice_Title"] = "Stop the VM",
+        ["VmList_StopChoice_Message"] = "How do you want to stop '{0}'?\n\nNormal shutdown: asks Windows to shut down cleanly, like from its Start menu (nothing is lost).\n\nForce stop: cuts power immediately, like holding down the power button. Only use this if the normal shutdown doesn't respond - unsaved work inside the VM will be lost.",
+        ["VmList_StopChoice_Normal"] = "Normal shutdown",
+        ["VmList_StopChoice_Forced"] = "Force stop",
+        ["VmList_DeleteConfirm_Title"] = "Delete the VM",
+        ["VmList_DeleteConfirm_Message"] = "Permanently delete the VM '{0}'?\n\nIts Hyper-V configuration and its virtual disk will be erased. This cannot be undone.",
         ["VmList_IsoMounted"] = "Mounted ISO: ",
         ["VmList_NoSelection"] = "Select a VM or create a new one.",
 
@@ -315,6 +328,9 @@ internal static class Strings
         ["VmList_Res_PhysicalRamDetected"] = "Detected physical RAM: ",
         ["VmList_Res_MaxForVm"] = " GB - maximum for a VM: ",
         ["VmList_Res_RamWarning"] = "Warning: you're assigning a large share of this computer's RAM to the VM.",
+        ["VmList_Res_CpuDetected"] = "Detected processor: ",
+        ["VmList_Res_CpuCores"] = " physical cores (",
+        ["VmList_Res_CpuThreads"] = " threads) - the maximum for a VM is capped at the physical cores.",
 
         ["VmList_Credentials_UsernameLabel"] = "Username: local Windows account OR Microsoft account",
         ["VmList_Credentials_PasswordLabel"] = "Password",
@@ -334,6 +350,8 @@ internal static class Strings
 
         ["VmList_Gpu_Partitioned"] = "Partitioned GPU",
         ["VmList_Gpu_VramAllocated"] = "Allocated VRAM (MB)",
+        ["VmList_Gpu_NoDedicatedVram"] = "This GPU has no dedicated VRAM (integrated graphics: it draws from system RAM). There is nothing to size here - Hyper-V shares graphics memory between the host and the VM automatically.",
+        ["VmList_Gpu_InstallDriverInProgress"] = "Preparing the GPU-P driver - copying the driver store means several GB, expect a few minutes. Don't close SPLYT.",
         ["VmList_Gpu_InstallDriver"] = "Install driver",
         ["VmList_Gpu_InstallDriver_Tooltip"] = "Copies the host GPU driver into the VM's disk offline (DISM). Requires elevation (administrator prompt) and the VM to be off.",
 
