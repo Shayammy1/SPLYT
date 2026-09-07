@@ -4,20 +4,15 @@
     clavier virtuel pendant les toutes premieres secondes du demarrage.
 
     L'invite firmware "Press any key to boot from CD or DVD..." ne reste active
-    qu'une seconde ou deux (confirme empiriquement) : un seul envoi differe de
-    quelques secondes (comme la version precedente de ce mecanisme) la rate
-    systematiquement. On envoie donc une touche toutes les 200 ms, en
-    commencant immediatement, pour couvrir cette fenetre etroite quel que
-    soit le moment exact ou elle apparait.
-
-    Fenetre de 45 secondes (pas 10) : le POST UEFI avant meme d'atteindre
-    cette invite (verification TPM/Secure Boot, plus de vCPU/RAM sur une VM
-    consequente, hote charge) peut largement depasser 10 secondes - dans ce
-    cas la fenetre se terminait avant meme que l'invite apparaisse, et la VM
-    ne demarrait jamais l'installeur (symptome : "ne boot pas toute seule
-    sur l'ISO"). Sans risque une fois l'installeur Windows lance : Entree
-    n'a d'effet que sur un controle deja focalise par defaut (ex. "Suivant"),
-    jamais sur un champ de saisie ou une case a cocher vide.
+    qu'une seconde ou deux, et peut apparaitre en moins de 2 secondes apres
+    Start-VM (confirme empiriquement par l'utilisateur) : la duree totale de
+    cette boucle importe donc bien moins que le moment ou elle COMMENCE
+    reellement a envoyer des touches. C'est pour ca que Start-NovaVm.ps1 lance
+    ce script AVANT Start-VM (pas apres) : le cout de demarrage d'un nouveau
+    powershell.exe (JIT, chargement des assemblies CIM au premier appel) se
+    chevauche alors avec Start-VM au lieu de s'ajouter apres, et la boucle
+    ci-dessous est deja chaude - en train de reessayer toutes les 50 ms - au
+    moment ou l'invite apparait reellement, quel qu'il soit.
 #>
 param(
     [Parameter(Mandatory)][string]$Name
@@ -33,7 +28,7 @@ while ((Get-Date) -lt $deadline) {
             Invoke-CimMethod -InputObject $keyboard -MethodName TypeKey -Arguments @{ keyCode = 13 } -ErrorAction Stop | Out-Null
         }
     } catch {
-        # VM pas encore prete / clavier pas encore associe : on reessaie au tour suivant.
+        # VM pas encore demarree / clavier pas encore associe : on reessaie au tour suivant.
     }
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 50
 }
