@@ -73,9 +73,17 @@ Invoke-NovaAction {
         -ErrorAction Stop
 
     # Reglages requis par Microsoft pour GPU-P : sans un espace MMIO suffisant,
-    # l'adaptateur peut s'attacher mais le GPU n'apparait pas correctement cote invite.
+    # l'adaptateur peut s'attacher mais le GPU apparait en erreur (triangle orange,
+    # type Code 43) cote invite plutot que de fonctionner. LowMemoryMappedIoSpace a
+    # 1GB (pas les 3GB de l'exemple officiel Microsoft) : confirme empiriquement par
+    # un utilisateur sur un GPU integre AMD (Radeon 8060S) - avec 3GB, le triangle
+    # orange restait present ; passe a 1GB, le GPU-P fonctionne. La fenetre "low"
+    # (sous 4 Go) est une ressource contrainte que se partagent tous les
+    # peripheriques de la VM ; les gros BARs d'un GPU vivent de toute facon dans la
+    # fenetre "high" (au-dessus de 4 Go) juste en dessous - une demande "low" plus
+    # petite laisse plus de marge sans rien retirer a ce qui compte vraiment.
     Set-VM -VMName $Name -GuestControlledCacheTypes $true -ErrorAction Stop
-    Set-VM -VMName $Name -LowMemoryMappedIoSpace 3GB -ErrorAction Stop
+    Set-VM -VMName $Name -LowMemoryMappedIoSpace 1GB -ErrorAction Stop
     Set-VM -VMName $Name -HighMemoryMappedIoSpace 32GB -ErrorAction Stop
 
     # Points de controle automatiques : actives par defaut par Hyper-V cote client
