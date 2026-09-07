@@ -167,7 +167,7 @@ internal static class Strings
         // --- Dialogue activation Hyper-V ---
         ["HyperV_Title"] = "Installer Hyper-V",
         ["HyperV_Prompt"] = "SPLYT a besoin de Hyper-V pour creer et piloter des machines virtuelles, et ce n'est pas encore installe/active sur ce PC. L'installer maintenant ? Cela necessite les droits administrateur (invite Windows) et, si c'est la premiere fois, un redemarrage complet du PC.",
-        ["HyperV_EditionNote"] = "Disponible sur Windows 11 Pro, Entreprise et Education uniquement (pas sur Windows Home).",
+        ["HyperV_EditionNote"] = "Officiellement disponible sur Windows 11 Pro, Entreprise et Education. Sur Windows Home, SPLYT tentera une methode non-officielle (non garantie, non prise en charge par Microsoft) : elle fonctionne sur la plupart des PC mais peut echouer selon votre version de Windows.",
         ["HyperV_InProgress"] = "Installation de Hyper-V en cours (peut prendre plusieurs minutes) - ne fermez pas SPLYT...",
         ["HyperV_EnableNow"] = "Installer Hyper-V",
         ["HyperV_RebootStillPending"] = "Hyper-V a deja ete installe sur ce PC, mais un redemarrage complet est encore necessaire pour finaliser l'installation. Redemarrer maintenant ?",
@@ -388,7 +388,7 @@ internal static class Strings
         // --- Hyper-V setup dialog ---
         ["HyperV_Title"] = "Install Hyper-V",
         ["HyperV_Prompt"] = "SPLYT needs Hyper-V to create and control virtual machines, and it isn't installed/enabled on this PC yet. Install it now? This requires administrator rights (Windows prompt) and, if this is the first time, a full PC restart.",
-        ["HyperV_EditionNote"] = "Available on Windows 11 Pro, Enterprise and Education only (not on Windows Home).",
+        ["HyperV_EditionNote"] = "Officially available on Windows 11 Pro, Enterprise and Education. On Windows Home, SPLYT will attempt an unofficial method (not guaranteed, not supported by Microsoft): it works on most PCs but may fail depending on your Windows version.",
         ["HyperV_InProgress"] = "Installing Hyper-V (can take several minutes) - don't close SPLYT...",
         ["HyperV_EnableNow"] = "Install Hyper-V",
         ["HyperV_RebootStillPending"] = "Hyper-V has already been installed on this PC, but a full restart is still needed to finish the installation. Restart now?",

@@ -128,6 +128,12 @@ public sealed class NvidiaGpuPatchResultDto
 public sealed class HyperVSetupResultDto
 {
     public bool EditionSupported { get; set; }
+
+    // Vrai si Windows Home a ete detecte et que la methode non-officielle
+    // (voir Enable-NovaVmHyperV.ps1) a ete tentee - que ce soit reussi ou pas
+    // (voir aussi RebootRequired/Message pour le resultat reel dans ce cas).
+    public bool UnofficialMethodUsed { get; set; }
+
     public bool AlreadyEnabled { get; set; }
     public bool RebootRequired { get; set; }
     public bool AddedToHyperVAdmins { get; set; }
