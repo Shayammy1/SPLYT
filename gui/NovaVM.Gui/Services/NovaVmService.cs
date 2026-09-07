@@ -92,15 +92,24 @@ public sealed class NovaVmService
     /// simule jamais dans la GUI.</summary>
     public async Task<VirtualMachine?> StartVmAsync(string name)
     {
-        var vm = await RunForVmAsync("Start-NovaVm.ps1", $"Demarrage de '{name}'", ("Name", name));
-        if (vm is not null)
-        {
-            OpenVmConnectConsole(name);
-        }
-        return vm;
+        var result = await RunAsyncCore(
+            "Start-NovaVm.ps1", $"Demarrage de '{name}'", silent: false, onProgress: null, ("Name", name));
+        if (!result.Success) return null;
+
+        var dto = result.DeserializeData<VirtualMachineDto>();
+        if (dto is null) return null;
+
+        OpenVmConnectConsole(name, dto.NeedsBootKeyPress);
+        return VirtualMachine.FromDto(dto);
     }
 
-    private async void OpenVmConnectConsole(string vmName)
+    /// <summary>needsBootKeyPress : voir ConvertTo-NovaVmDto - vrai seulement si un
+    /// lecteur DVD est monte ET encore premier peripherique de demarrage (donc
+    /// Windows Setup pas encore termine). Dans ce cas, une fois la console ouverte,
+    /// SPLYT simule elle-meme un appui pour passer l'invite firmware "Press any key
+    /// to boot from CD or DVD..." - voir SendBootKeyBurstAsync pour pourquoi ce
+    /// n'est PAS fait via le clavier synthetique WMI (Msvm_Keyboard).</summary>
+    private async void OpenVmConnectConsole(string vmName, bool needsBootKeyPress)
     {
         try
         {
@@ -115,7 +124,11 @@ public sealed class NovaVmService
             var process = Process.Start(startInfo);
             if (process is null) return;
 
-            await ResizeConsoleWindowAsync(process);
+            var hwnd = await ResizeConsoleWindowAsync(process);
+            if (needsBootKeyPress && hwnd != IntPtr.Zero)
+            {
+                await SendBootKeyBurstAsync(hwnd);
+            }
         }
         catch (Exception ex)
         {
@@ -135,8 +148,10 @@ public sealed class NovaVmService
     /// arbitraire (verifie empiriquement). En revanche, agrandir la fenetre UNE
     /// FOIS (fiable, verifie) puis la redimensionner ENSUITE a la taille voulue
     /// fonctionne de maniere fiable et stable dans le temps. Resultat : une
-    /// fenetre moyenne (1280x800), pas plein ecran, avec tout l'affichage visible.</summary>
-    private static async Task ResizeConsoleWindowAsync(Process process)
+    /// fenetre moyenne (1280x800), pas plein ecran, avec tout l'affichage visible.
+    /// Retourne le handle de la fenetre (IntPtr.Zero si jamais trouvee) pour que
+    /// l'appelant puisse y envoyer des touches ensuite (voir SendBootKeyBurstAsync).</summary>
+    private static async Task<IntPtr> ResizeConsoleWindowAsync(Process process)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
         var hwnd = IntPtr.Zero;
@@ -149,18 +164,45 @@ public sealed class NovaVmService
             }
             catch (InvalidOperationException)
             {
-                return; // Le processus s'est deja termine.
+                return IntPtr.Zero; // Le processus s'est deja termine.
             }
             if (hwnd != IntPtr.Zero) break;
             await Task.Delay(200);
         }
-        if (hwnd == IntPtr.Zero) return;
+        if (hwnd == IntPtr.Zero) return IntPtr.Zero;
 
         NativeWindow.ShowWindow(hwnd, NativeWindow.SW_MAXIMIZE);
         await Task.Delay(500);
 
         var (x, y) = NativeWindow.GetCenteredPosition(ConsoleWindowWidth, ConsoleWindowHeight);
         NativeWindow.MoveWindow(hwnd, x, y, ConsoleWindowWidth, ConsoleWindowHeight, true);
+        return hwnd;
+    }
+
+    /// <summary>Simule un appui repete sur Espace DANS la fenetre vmconnect (comme le
+    /// ferait un utilisateur), pour passer automatiquement l'invite firmware "Press
+    /// any key to boot from CD or DVD...".
+    ///
+    /// Verifie empiriquement (capture d'ecran + logs de diagnostic) qu'une premiere
+    /// approche - le clavier synthetique WMI (Msvm_Keyboard.TypeKey), independante
+    /// de toute fenetre - fonctionnait sur une VM sans GPU-P mais PAS sur une VM
+    /// avec un adaptateur GPU-P attache (Add-VMGpuPartitionAdapter) : les appels WMI
+    /// reussissaient sans la moindre erreur, mais la touche n'atteignait jamais
+    /// reellement l'invite de demarrage. Puisque GPU-P est la fonctionnalite phare
+    /// de SPLYT, cette approche etait inutilisable pour l'usage reel. A l'inverse,
+    /// un appui reellement recu par la fenetre vmconnect (confirme manuellement par
+    /// l'utilisateur) fonctionne dans tous les cas, GPU-P ou non - d'ou SendInput
+    /// cible sur cette fenetre plutot que WMI.</summary>
+    private static async Task SendBootKeyBurstAsync(IntPtr hwnd)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            NativeWindow.SetForegroundWindow(hwnd);
+            NativeWindow.keybd_event(NativeWindow.VK_SPACE, 0, 0, UIntPtr.Zero);
+            NativeWindow.keybd_event(NativeWindow.VK_SPACE, 0, NativeWindow.KEYEVENTF_KEYUP, UIntPtr.Zero);
+            await Task.Delay(250);
+        }
     }
 
     /// <summary>P/Invoke minimal pour redimensionner la fenetre vmconnect.</summary>
@@ -173,6 +215,18 @@ public sealed class NovaVmService
 
         [DllImport("user32.dll")]
         public static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        // keybd_event (pas SendInput) : simple, suffisant pour simuler un appui sur
+        // une touche sans modificateur, et cible - comme SendInput l'aurait fait -
+        // la fenetre au premier plan (d'ou SetForegroundWindow juste avant).
+        [DllImport("user32.dll")]
+        public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        public const byte VK_SPACE = 0x20;
+        public const uint KEYEVENTF_KEYUP = 0x0002;
 
         [DllImport("user32.dll")]
         private static extern int GetSystemMetrics(int nIndex);

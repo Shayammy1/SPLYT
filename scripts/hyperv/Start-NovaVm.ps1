@@ -3,22 +3,22 @@
     Demarre une VRAIE VM Hyper-V. L'ouverture de la console (vmconnect.exe)
     est faite cote GUI (NovaVmService), pas ici.
 
-    Si une ISO est montee :
-    - verifie qu'elle existe toujours avant de demarrer (message clair sinon) ;
-    - lance D'ABORD (avant Start-VM) un processus detache (Send-NovaVmBootKey.ps1)
-      qui envoie Entree en rafale pour passer l'invite "Press any key to boot
-      from CD or DVD..." (fenetre tres courte, une seconde ou deux, qui peut
-      apparaitre moins de 2 secondes apres le demarrage) sans intervention
-      manuelle. L'ordre compte : demarrer ce processus APRES Start-VM (comme
-      avant) ajoute le cout de demarrage d'un nouveau powershell.exe (chargement
-      des assemblies CIM comprises) avant le premier envoi de touche, ce qui
-      peut a lui seul depasser la fenetre. En le lancant avant, ce cout est
-      absorbe pendant que Start-VM tourne encore, et la boucle d'envoi est deja
-      chaude au moment ou l'invite apparait reellement ;
-    - lance un second processus detache (Watch-NovaVmInstallComplete.ps1) qui
-      remettra le disque dur en premier peripherique de demarrage une fois
-      l'installation terminee, pour eviter de relancer l'installeur au prochain
-      demarrage.
+    Si une ISO est montee ET encore premier peripherique de demarrage
+    (needsBootKeyPress du DTO retourne - voir ConvertTo-NovaVmDto), la GUI
+    simule elle-meme un appui clavier DANS LA FENETRE vmconnect une fois
+    celle-ci ouverte, pour passer l'invite "Press any key to boot from CD
+    or DVD..." sans intervention manuelle.
+
+    Ancienne approche abandonnee : simuler la touche via le clavier
+    synthetique WMI (Msvm_Keyboard.TypeKey), independamment de toute fenetre
+    vmconnect. Verifie empiriquement (capture d'ecran + logs) : ca fonctionne
+    sur une VM sans GPU-P, mais PAS sur une VM avec un adaptateur GPU-P
+    attache (Add-VMGpuPartitionAdapter) - les appels WMI reussissent sans
+    erreur mais la touche n'atteint jamais reellement l'invite de demarrage.
+    Puisque GPU-P est la fonctionnalite phare de SPLYT, c'etait inacceptable.
+    A l'inverse, appuyer une touche reellement DANS la fenetre vmconnect
+    (confirme par l'utilisateur, manuellement) fonctionne dans tous les cas -
+    d'ou le nouveau mecanisme, cote GUI plutot que cote script.
 #>
 param(
     [Parameter(Mandatory)][string]$Name
@@ -42,13 +42,6 @@ Invoke-NovaAction {
     }
 
     if ($dvd -and $dvd.Path) {
-        # Lance en premier, AVANT Start-VM : voir le commentaire d'en-tete - le
-        # temps de demarrage de ce processus (powershell.exe + assemblies CIM)
-        # doit se chevaucher avec Start-VM, pas s'additionner apres, sans quoi
-        # l'invite "Press any key" (a peine 1-2 secondes, parfois vue en moins
-        # de 2 secondes apres le clic "Demarrer") peut deja etre passee avant
-        # le tout premier envoi de touche.
-        Start-NovaDetachedScript -ScriptName "Send-NovaVmBootKey.ps1" -Name $Name
         Start-NovaDetachedScript -ScriptName "Watch-NovaVmInstallComplete.ps1" -Name $Name
     }
 

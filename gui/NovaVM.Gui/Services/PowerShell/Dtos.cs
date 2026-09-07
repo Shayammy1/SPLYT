@@ -25,6 +25,7 @@ public sealed class VirtualMachineDto
     public double DiskSizeGb { get; set; }
 
     public string? IsoPath { get; set; }
+    public bool NeedsBootKeyPress { get; set; }
     public string? LastError { get; set; }
 }
 

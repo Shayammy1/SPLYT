@@ -227,6 +227,26 @@ function ConvertTo-NovaVmDto {
     $dvd = Get-VMDvdDrive -VMName $Vm.Name -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($dvd -and $dvd.Path) { $isoPath = $dvd.Path }
 
+    # Vrai seulement si le lecteur DVD est a la fois monte ET premier peripherique
+    # de demarrage (voir Watch-NovaVmInstallComplete.ps1 : une fois l'installation
+    # terminee, le disque dur repasse premier, meme si l'ISO reste montee) - c'est
+    # le signal cote GUI (NovaVmService) pour savoir s'il faut simuler un appui
+    # clavier dans la fenetre vmconnect apres l'ouverture de la console (voir
+    # StartVmAsync). Sans cette distinction, la GUI enverrait des touches dans une
+    # session Windows deja installee et utilisee normalement a chaque demarrage.
+    $needsBootKeyPress = $false
+    if ($dvd -and $dvd.Path) {
+        # Le premier element de BootOrder expose ses infos de controleur sur sa
+        # propriete .Device (pas directement) - verifie via Get-Member.
+        $firstBootDevice = (Get-VMFirmware -VMName $Vm.Name -ErrorAction SilentlyContinue).BootOrder | Select-Object -First 1
+        if ($firstBootDevice -and $firstBootDevice.BootType -eq 'Drive' -and $firstBootDevice.Device -and
+            $firstBootDevice.Device.ControllerType -eq $dvd.ControllerType -and
+            $firstBootDevice.Device.ControllerNumber -eq $dvd.ControllerNumber -and
+            $firstBootDevice.Device.ControllerLocation -eq $dvd.ControllerLocation) {
+            $needsBootKeyPress = $true
+        }
+    }
+
     $diskPath = $null
     $diskSizeGb = 0
     $hardDrive = Get-VMHardDiskDrive -VMName $Vm.Name -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -254,6 +274,7 @@ function ConvertTo-NovaVmDto {
         diskPath              = $diskPath
         diskSizeGb            = $diskSizeGb
         isoPath               = $isoPath
+        needsBootKeyPress     = $needsBootKeyPress
         lastError             = $null
     }
 }
