@@ -44,7 +44,7 @@ public sealed class MainViewModel : ViewModelBase
         Dashboard = new DashboardViewModel(vmService, log, VmList.Vms);
         Gpu = new GpuViewModel(vmService);
         Storage = new StorageViewModel(vmService);
-        Settings = new SettingsViewModel(vmService);
+        Settings = new SettingsViewModel(vmService, log);
         Journal = new JournalViewModel(log);
 
         // Quand une VM change (creee/demarree/supprimee...), le Dashboard se

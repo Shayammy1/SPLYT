@@ -8,22 +8,30 @@ namespace NovaVM.Gui.ViewModels;
 public sealed class SettingsViewModel : ViewModelBase
 {
     private readonly NovaVmService _vmService;
+    private readonly LogService _log;
     private DiagnosticsDto? _diagnostics;
+    private string? _copyReportStatus;
     private string _defaultDiskPath = @"C:\NovaVM\Disks";
     private bool _autoSelectGpu = true;
     private bool _darkTheme = true;
     private AppLanguage _selectedLanguage = Loc.CurrentLanguage;
     private bool _languageChanged;
 
-    public SettingsViewModel(NovaVmService vmService)
+    public SettingsViewModel(NovaVmService vmService, LogService log)
     {
         _vmService = vmService;
+        _log = log;
         RefreshDiagnosticsCommand = new AsyncRelayCommand(LoadAsync);
         RestartNowCommand = new RelayCommand(RestartNow);
+        CopyDiagnosticReportCommand = new AsyncRelayCommand(CopyDiagnosticReportAsync);
         _ = LoadAsync();
     }
 
     public DiagnosticsDto? Diagnostics { get => _diagnostics; private set => SetProperty(ref _diagnostics, value); }
+
+    /// <summary>Retour affiche apres un clic sur "copier le rapport" (succes ou
+    /// echec du presse-papiers), plutot qu'un bouton qui ne dit rien.</summary>
+    public string? CopyReportStatus { get => _copyReportStatus; private set => SetProperty(ref _copyReportStatus, value); }
 
     // Reglages d'application simples, en memoire pour l'instant (la persistence
     // sur disque - fichier de config utilisateur - viendra en phase d'implementation).
@@ -51,10 +59,55 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public bool LanguageChanged { get => _languageChanged; private set => SetProperty(ref _languageChanged, value); }
 
-    public string AppVersion => "SPLYT 0.4.0-prototype";
+    public string AppVersion => "SPLYT 0.4.1-prototype";
 
     public AsyncRelayCommand RefreshDiagnosticsCommand { get; }
     public RelayCommand RestartNowCommand { get; }
+
+    /// <summary>Met dans le presse-papiers tout ce qu'il faut pour qu'un rapport de
+    /// bug soit exploitable (materiel, pilotes, build de Windows, etat des VMs,
+    /// dernieres erreurs) : demander ces informations a l'utilisateur donne des
+    /// champs oublies ou faux, alors que SPLYT les connait deja.</summary>
+    public AsyncRelayCommand CopyDiagnosticReportCommand { get; }
+
+    private async Task CopyDiagnosticReportAsync()
+    {
+        CopyReportStatus = null;
+
+        // Diagnostics rafraichis au moment du clic : un rapport doit decrire l'etat
+        // actuel de la machine, pas celui de l'ouverture de la page.
+        var diagnostics = await _vmService.GetDiagnosticsAsync();
+        Diagnostics = diagnostics ?? Diagnostics;
+
+        var report = DiagnosticReportBuilder.Build(
+            AppVersion,
+            diagnostics ?? Diagnostics,
+            await _vmService.GetHostLimitsAsync(),
+            await _vmService.GetHostGpusAsync(),
+            await _vmService.GetVmsAsync(),
+            _log.RecentAlerts(10));
+
+        try
+        {
+            // Le presse-papiers peut etre momentanement verrouille par une autre
+            // application : WPF echoue alors avec une exception COM, d'ou le retry.
+            System.Windows.Clipboard.SetDataObject(report, copy: true);
+            CopyReportStatus = Loc.Get("Settings_ReportCopied");
+        }
+        catch
+        {
+            try
+            {
+                await Task.Delay(150);
+                System.Windows.Clipboard.SetDataObject(report, copy: true);
+                CopyReportStatus = Loc.Get("Settings_ReportCopied");
+            }
+            catch (Exception ex)
+            {
+                CopyReportStatus = Loc.Get("Settings_ReportCopyFailed", ex.Message);
+            }
+        }
+    }
 
     private void RestartNow()
     {

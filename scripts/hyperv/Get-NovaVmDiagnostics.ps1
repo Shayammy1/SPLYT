@@ -21,7 +21,19 @@ Invoke-NovaAction {
     $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator)
 
+    # Identite exacte de la machine et de Windows : c'est ce qui manque le plus
+    # dans un rapport de bug GPU-P, ou deux pannes de causes totalement
+    # differentes donnent le meme symptome vu de l'exterieur. Voir le rapport de
+    # diagnostic copiable (DiagnosticReportBuilder cote C#).
+    $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+    $cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+    $displayVersion = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name DisplayVersion -ErrorAction SilentlyContinue).DisplayVersion
+
     $diagnostics = [ordered]@{
+        osCaption                = if ($os) { $os.Caption } else { $null }
+        osDisplayVersion         = $displayVersion
+        osBuild                  = if ($os) { $os.BuildNumber } else { $null }
+        cpuName                  = if ($cpu) { $cpu.Name } else { $null }
         hyperVModuleInstalled    = [bool]$hyperVModule
         hyperVModuleVersion      = if ($hyperVModule) { $hyperVModule.Version.ToString() } else { $null }
         canListVms               = $canListVms

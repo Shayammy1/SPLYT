@@ -209,6 +209,15 @@ public sealed class VirtualDiskDto
 
 public sealed class DiagnosticsDto
 {
+    public string? OsCaption { get; set; }
+
+    /// <summary>Version commerciale de Windows ("24H2"...), qui n'est pas deduisible
+    /// du numero de build pour un lecteur humain.</summary>
+    public string? OsDisplayVersion { get; set; }
+
+    public string? OsBuild { get; set; }
+    public string? CpuName { get; set; }
+
     public bool HyperVModuleInstalled { get; set; }
     public string? HyperVModuleVersion { get; set; }
     public bool CanListVms { get; set; }
