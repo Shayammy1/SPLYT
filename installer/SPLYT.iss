@@ -8,7 +8,7 @@
 ; desinstallation automatique de l'ancienne version).
 #define MyAppId "{{63D8885A-B8AF-4801-B413-86134D4B8290}"
 #define MyAppName "SPLYT"
-#define MyAppVersion "0.2.9"
+#define MyAppVersion "0.3.0"
 #define MyAppPublisher "SPLYT"
 #define MyAppExeName "NovaVM.Gui.exe"
 #define MyPublishDir "..\gui\NovaVM.Gui\bin\Release\publish-win-x64"

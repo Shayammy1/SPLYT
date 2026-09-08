@@ -1,0 +1,31 @@
+<UserControl x:Class="NovaVM.Gui.Controls.InfoDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:NovaVM.Gui.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:InfoDialogViewModel}">
+    <Grid>
+        <Border Style="{StaticResource CardStyle}" Width="520" MaxHeight="620"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{Binding Title}" FontSize="18" FontWeight="Bold"
+                           TextWrapping="Wrap" Margin="0,0,0,12" Foreground="{StaticResource TextPrimaryBrush}" />
+
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
+                    <CheckBox Content="{Binding DontShowAgainLabel}" IsChecked="{Binding DontShowAgain}"
+                              Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,14"
+                              Visibility="{Binding ShowDontShowAgain, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <Button Content="{Binding CloseLabel}" Style="{StaticResource AccentButtonStyle}"
+                            Command="{Binding CloseCommand}" HorizontalAlignment="Right" />
+                </StackPanel>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" Margin="0,0,14,0"
+                               LineHeight="19" Foreground="{StaticResource TextSecondaryBrush}" />
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

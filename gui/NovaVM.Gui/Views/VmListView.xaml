@@ -136,7 +136,8 @@
                                    TextWrapping="Wrap" FontSize="12" />
                     </Border>
 
-                    <TabControl Background="Transparent" BorderThickness="0">
+                    <TabControl Background="Transparent" BorderThickness="0"
+                                ItemContainerStyle="{StaticResource PillTabItemStyle}">
                         <TabItem Header="{markup:Tr VmList_Tab_Resources}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
@@ -217,7 +218,7 @@
                             </ScrollViewer>
                         </TabItem>
 
-                        <TabItem Header="GPU-P">
+                        <TabItem Header="GPU-P" IsSelected="{Binding IsGpuTabSelected, Mode=TwoWay}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
                                 <TextBlock Text="{markup:Tr VmList_Gpu_Partitioned}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />

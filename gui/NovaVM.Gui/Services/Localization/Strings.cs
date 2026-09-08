@@ -182,6 +182,10 @@ internal static class Strings
         ["HyperV_RebootStillPending"] = "Hyper-V a deja ete installe sur ce PC, mais un redemarrage complet est encore necessaire pour finaliser l'installation. Redemarrer maintenant ?",
         ["Common_Later"] = "Plus tard",
         ["Common_Close"] = "Fermer",
+        ["Common_DontShowAgain"] = "Ne plus afficher a l'avenir",
+
+        ["VmList_Gpu_InfoTitle"] = "Le GPU-P, c'est quoi ?",
+        ["VmList_Gpu_InfoMessage"] = "Le GPU-P (partitionnement de GPU) permet de partager votre carte graphique entre votre PC et la machine virtuelle EN MEME TEMPS. Contrairement au passthrough classique, vous ne perdez pas l'usage de votre GPU sur l'ordinateur principal : les deux sessions l'utilisent en parallele.\n\nC'est ce qui permet a deux personnes de jouer simultanement sur un seul PC : vous sur votre ecran habituel, la deuxieme personne dans la VM, avec une vraie acceleration graphique des deux cotes.\n\nDans cet onglet :\n\n- GPU partitionne : choisissez la carte graphique a partager avec cette VM. La VM doit etre eteinte pour changer ce reglage.\n\n- VRAM allouee : la part de memoire graphique reservee a la VM. Sur un processeur graphique integre (sans VRAM dediee), ce reglage est desactive car la memoire est geree automatiquement.\n\n- Installer le pilote : etape indispensable apres avoir choisi un GPU. Elle copie le pilote graphique de votre PC dans le disque de la VM (plusieurs Go, comptez quelques minutes). Sans elle, le GPU n'apparaitra pas dans la VM.\n\nOrdre a suivre : choisir le GPU, Enregistrer, puis Installer le pilote, et enfin demarrer la VM.",
 
         // --- Messages VmListViewModel ---
         ["Vm_NoGpuOption"] = "Aucun (pas de GPU-P)",
@@ -412,6 +416,10 @@ internal static class Strings
         ["HyperV_RebootStillPending"] = "Hyper-V has already been installed on this PC, but a full restart is still needed to finish the installation. Restart now?",
         ["Common_Later"] = "Later",
         ["Common_Close"] = "Close",
+        ["Common_DontShowAgain"] = "Don't show this again",
+
+        ["VmList_Gpu_InfoTitle"] = "What is GPU-P?",
+        ["VmList_Gpu_InfoMessage"] = "GPU-P (GPU partitioning) shares your graphics card between your PC and the virtual machine AT THE SAME TIME. Unlike traditional passthrough, you don't lose the use of your GPU on the main computer: both sessions use it in parallel.\n\nThat's what makes it possible for two people to game simultaneously on a single PC: you on your usual screen, the second person inside the VM, with real graphics acceleration on both sides.\n\nIn this tab:\n\n- Partitioned GPU: pick the graphics card to share with this VM. The VM must be shut down to change this setting.\n\n- Allocated VRAM: the share of graphics memory reserved for the VM. On integrated graphics (no dedicated VRAM), this setting is disabled because memory is managed automatically.\n\n- Install driver: a required step after picking a GPU. It copies your PC's graphics driver into the VM's disk (several GB, expect a few minutes). Without it, the GPU will not appear inside the VM.\n\nOrder to follow: pick the GPU, Save, then Install driver, and finally start the VM.",
 
         // --- VmListViewModel messages ---
         ["Vm_NoGpuOption"] = "None (no GPU-P)",

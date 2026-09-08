@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using NovaVM.Gui.Mvvm;
 using NovaVM.Gui.Services;
 using NovaVM.Gui.Services.Localization;
@@ -25,13 +26,20 @@ public sealed class MainViewModel : ViewModelBase
     private HyperVSetupDialogViewModel? _hyperVSetupDialog;
     private bool _isConfirmDialogOpen;
     private ConfirmDialogViewModel? _confirmDialog;
+    private bool _isInfoDialogOpen;
+    private InfoDialogViewModel? _infoDialog;
+    private bool _isLanguageChoiceDialogOpen;
+    private LanguageChoiceDialogViewModel? _languageChoiceDialog;
+    private readonly DispatcherTimer _stateRefreshTimer;
 
     public MainViewModel(NovaVmService vmService, LogService log)
     {
         _vmService = vmService;
 
-        Dashboard = new DashboardViewModel(vmService, log);
+        // VmList d'abord : c'est lui qui detient la liste des VMs, que le Dashboard
+        // se contente ensuite de partager (voir son constructeur).
         VmList = new VmListViewModel(vmService);
+        Dashboard = new DashboardViewModel(vmService, log, VmList.Vms);
         Gpu = new GpuViewModel(vmService);
         Storage = new StorageViewModel(vmService);
         Settings = new SettingsViewModel(vmService);
@@ -52,6 +60,7 @@ public sealed class MainViewModel : ViewModelBase
         // que chaque choix doit declencher) ; la coquille se charge uniquement de
         // l'afficher par-dessus toute la fenetre, comme les autres modales.
         VmList.ConfirmRequested += (_, dialog) => OpenConfirmDialog(dialog);
+        VmList.InfoRequested += (_, dialog) => OpenInfoDialog(dialog);
 
         NavItems = new ObservableCollection<NavItem>
         {
@@ -69,7 +78,69 @@ public sealed class MainViewModel : ViewModelBase
         OpenCreateVmDialogCommand = new AsyncRelayCommand(OpenCreateVmDialogAsync);
         CloseCreateVmDialogCommand = new RelayCommand(() => IsCreateDialogOpen = false);
 
-        _ = CheckHyperVSetupAsync();
+        // Rafraichissement periodique de l'etat des VMs : un arret propre passe par
+        // "Arret en cours" pendant plusieurs secondes, et une VM peut aussi etre
+        // eteinte depuis l'interieur (l'utilisateur eteint Windows dans la VM) ou
+        // depuis le Gestionnaire Hyper-V. Sans ca, l'etat affiche restait fige
+        // jusqu'au prochain clic sur Actualiser.
+        _stateRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _stateRefreshTimer.Tick += async (_, _) => await VmList.RefreshStatesAsync();
+        _stateRefreshTimer.Start();
+
+        _ = RunFirstRunFlowAsync();
+    }
+
+    /// <summary>Enchaine les invites de demarrage dans l'ordre : la langue d'abord
+    /// (au tout premier lancement uniquement - inutile de proposer d'installer
+    /// Hyper-V dans une langue que l'utilisateur n'a pas encore choisie), puis la
+    /// verification Hyper-V.</summary>
+    private async Task RunFirstRunFlowAsync()
+    {
+        if (Loc.NeedsLanguageChoice)
+        {
+            var restarting = await AskLanguageAsync();
+            // Redemarrage en cours pour appliquer la langue : ne rien enchainer,
+            // l'invite Hyper-V sera proposee par l'instance qui redemarre.
+            if (restarting) return;
+        }
+
+        await CheckHyperVSetupAsync();
+    }
+
+    /// <summary>Retourne vrai si l'application est en train de redemarrer pour
+    /// appliquer la langue choisie.</summary>
+    private Task<bool> AskLanguageAsync()
+    {
+        var completion = new TaskCompletionSource<bool>();
+        var dialog = new LanguageChoiceDialogViewModel();
+
+        dialog.Confirmed += (_, restartNeeded) =>
+        {
+            IsLanguageChoiceDialogOpen = false;
+            if (restartNeeded) RestartApp();
+            completion.TrySetResult(restartNeeded);
+        };
+
+        LanguageChoiceDialog = dialog;
+        IsLanguageChoiceDialogOpen = true;
+        return completion.Task;
+    }
+
+    /// <summary>Les textes deja affiches ne changent qu'au demarrage (voir Loc) :
+    /// au tout premier lancement, rien n'est en cours, donc relancer immediatement
+    /// est plus simple pour l'utilisateur que de lui demander de le faire.</summary>
+    private static void RestartApp()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(Environment.ProcessPath ?? "NovaVM.Gui.exe");
+        }
+        catch
+        {
+            // Best-effort : si le relancement echoue, l'utilisateur peut fermer et
+            // rouvrir SPLYT lui-meme - la langue est deja enregistree.
+        }
+        System.Windows.Application.Current.Shutdown();
     }
 
     public ObservableCollection<NavItem> NavItems { get; }
@@ -114,6 +185,12 @@ public sealed class MainViewModel : ViewModelBase
     public bool IsConfirmDialogOpen { get => _isConfirmDialogOpen; private set => SetProperty(ref _isConfirmDialogOpen, value); }
     public ConfirmDialogViewModel? ConfirmDialog { get => _confirmDialog; private set => SetProperty(ref _confirmDialog, value); }
 
+    public bool IsInfoDialogOpen { get => _isInfoDialogOpen; private set => SetProperty(ref _isInfoDialogOpen, value); }
+    public InfoDialogViewModel? InfoDialog { get => _infoDialog; private set => SetProperty(ref _infoDialog, value); }
+
+    public bool IsLanguageChoiceDialogOpen { get => _isLanguageChoiceDialogOpen; private set => SetProperty(ref _isLanguageChoiceDialogOpen, value); }
+    public LanguageChoiceDialogViewModel? LanguageChoiceDialog { get => _languageChoiceDialog; private set => SetProperty(ref _languageChoiceDialog, value); }
+
     public AsyncRelayCommand OpenCreateVmDialogCommand { get; }
     public RelayCommand CloseCreateVmDialogCommand { get; }
 
@@ -139,6 +216,13 @@ public sealed class MainViewModel : ViewModelBase
         dialog.Closed += (_, _) => IsConfirmDialogOpen = false;
         ConfirmDialog = dialog;
         IsConfirmDialogOpen = true;
+    }
+
+    private void OpenInfoDialog(InfoDialogViewModel dialog)
+    {
+        dialog.Closed += (_, _) => IsInfoDialogOpen = false;
+        InfoDialog = dialog;
+        IsInfoDialogOpen = true;
     }
 
     private void OpenSunshineCredentialsDialog(string vmName)

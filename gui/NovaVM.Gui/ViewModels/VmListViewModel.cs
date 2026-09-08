@@ -33,6 +33,7 @@ public sealed class VmListViewModel : ViewModelBase
     private IReadOnlyList<HostGpu> _hostGpus = Array.Empty<HostGpu>();
     private bool _isInstallingGpuDriver;
     private string? _gpuDriverInstallStep;
+    private bool _isGpuTabSelected;
 
     public VmListViewModel(NovaVmService vmService)
     {
@@ -184,6 +185,39 @@ public sealed class VmListViewModel : ViewModelBase
     /// Write-NovaProgress), ou null hors installation.</summary>
     public string? GpuDriverInstallStep { get => _gpuDriverInstallStep; private set => SetProperty(ref _gpuDriverInstallStep, value); }
 
+    /// <summary>Liee a l'onglet GPU-P (TabItem.IsSelected) : la premiere fois qu'on
+    /// l'ouvre, une explication s'affiche - "GPU-P" ne dit rien a quelqu'un qui
+    /// decouvre le logiciel, alors que c'est sa fonctionnalite centrale. L'invite ne
+    /// revient plus si l'utilisateur coche "Ne plus afficher" (AppSettingsStore).</summary>
+    public bool IsGpuTabSelected
+    {
+        get => _isGpuTabSelected;
+        set
+        {
+            if (SetProperty(ref _isGpuTabSelected, value) && value) ShowGpuInfoIfNeeded();
+        }
+    }
+
+    private void ShowGpuInfoIfNeeded()
+    {
+        if (AppSettingsStore.Load().GpuInfoDismissed) return;
+
+        var dialog = new InfoDialogViewModel(
+            Loc.Get("VmList_Gpu_InfoTitle"),
+            Loc.Get("VmList_Gpu_InfoMessage"),
+            showDontShowAgain: true);
+
+        dialog.Closed += (_, dontShowAgain) =>
+        {
+            if (!dontShowAgain) return;
+            var settings = AppSettingsStore.Load();
+            settings.GpuInfoDismissed = true;
+            AppSettingsStore.Save(settings);
+        };
+
+        InfoRequested?.Invoke(this, dialog);
+    }
+
     /// <summary>Texte du dernier diagnostic GPU-P (voir RunGpuDiagnosticsCommand),
     /// ou null tant qu'aucun diagnostic n'a ete lance pour la VM selectionnee.</summary>
     public string? GpuDiagnosticsSummary { get => _gpuDiagnosticsSummary; private set => SetProperty(ref _gpuDiagnosticsSummary, value); }
@@ -303,6 +337,9 @@ public sealed class VmListViewModel : ViewModelBase
     /// la mecanique des modales, comme pour CreateVmRequested.</summary>
     public event EventHandler<ConfirmDialogViewModel>? ConfirmRequested;
 
+    /// <summary>Meme principe pour une boite purement informative.</summary>
+    public event EventHandler<InfoDialogViewModel>? InfoRequested;
+
     /// <summary>Appele par MainViewModel une fois la boite de dialogue d'identifiants
     /// terminee avec succes, pour afficher le resultat (etapes restantes : PIN
     /// d'appariement) directement dans l'onglet Affichage plutot que de le perdre.</summary>
@@ -402,6 +439,40 @@ public sealed class VmListViewModel : ViewModelBase
         var updated = await action(SelectedVm.Name);
         if (updated is not null) SelectedVm.UpdateFrom(ToDto(updated));
         RaiseAllCanExecuteChanged();
+
+        // Sans ca, la page Accueil gardait l'ancien etat apres un demarrage/arret
+        // (elle ne se rafraichit que sur VmsChanged) et les deux pages affichaient
+        // des etats contradictoires pour la meme VM.
+        VmsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Rafraichit UNIQUEMENT l'etat des VMs deja listees, sans reconstruire
+    /// la liste ni recharger les champs d'edition : appele periodiquement par la
+    /// coquille (voir MainViewModel) pour que les transitions qui prennent du temps
+    /// (arret propre : En cours -> Arret en cours -> Arretee) ou declenchees depuis
+    /// l'interieur de la VM (l'utilisateur eteint Windows lui-meme) se refletent
+    /// partout, au lieu d'attendre un clic sur Actualiser.
+    ///
+    /// LoadAsync ferait bien plus : il remplace les objets VM, reselectionne et
+    /// recharge les champs d'edition - ce qui effacerait les reglages en cours de
+    /// saisie de l'utilisateur toutes les quelques secondes.</summary>
+    public async Task RefreshStatesAsync()
+    {
+        var vms = await _vmService.GetVmsAsync();
+        if (vms.Count == 0 && Vms.Count > 0) return;
+
+        var changed = false;
+        foreach (var vm in Vms)
+        {
+            var fresh = vms.FirstOrDefault(v => v.Name == vm.Name);
+            if (fresh is null || fresh.State == vm.State) continue;
+            vm.State = fresh.State;
+            changed = true;
+        }
+
+        if (!changed) return;
+        RaiseAllCanExecuteChanged();
+        VmsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void AskHowToStop()

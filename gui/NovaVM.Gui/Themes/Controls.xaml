@@ -113,6 +113,42 @@
         </Setter>
     </Style>
 
+    <!-- Onglets du panneau de detail d'une VM (Ressources / GPU-P / Affichage).
+         Le style implicite de WPF-UI les rendait quasi indiscernables d'un simple
+         libelle : meme couleur, aucun cadre, aucun retour au survol - on ne
+         comprenait pas que c'etaient des elements cliquables. Ils prennent donc ici
+         la forme de "pilules" bordees, avec un survol visible et un onglet actif
+         nettement marque (fond accentue). -->
+    <Style x:Key="PillTabItemStyle" TargetType="TabItem">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Bg" Background="Transparent" CornerRadius="9" Padding="16,9"
+                            BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1">
+                        <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="#0A0E12" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Remplace le style implicite TextBox de WPF-UI pour coller a notre palette. -->
     <Style TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />

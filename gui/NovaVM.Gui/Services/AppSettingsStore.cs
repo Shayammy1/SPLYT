@@ -10,7 +10,15 @@ namespace NovaVM.Gui.Services;
 /// champ, sous peine d'effacer silencieusement les autres reglages deja enregistres.</summary>
 public sealed class PersistedAppSettings
 {
+    /// <summary>null tant que l'utilisateur n'a jamais choisi de langue : c'est ce
+    /// qui declenche le choix de langue au tout premier demarrage (voir
+    /// MainViewModel.RunFirstRunFlowAsync). Une fois choisie - meme si c'est la
+    /// langue par defaut - la valeur est ecrite et l'invite ne revient plus.</summary>
     public string? Language { get; set; }
+
+    /// <summary>Vrai une fois que l'utilisateur a coche "Ne plus afficher" sur
+    /// l'explication de l'onglet GPU-P.</summary>
+    public bool GpuInfoDismissed { get; set; }
 
     /// <summary>Vrai entre le moment ou Enable-NovaVmHyperV.ps1 a active la
     /// fonctionnalite Windows Hyper-V avec succes et le redemarrage complet du PC

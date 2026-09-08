@@ -105,5 +105,19 @@
             <ContentControl Content="{Binding ConfirmDialog}" Focusable="False" />
         </Grid>
 
+        <!-- Voile + boite d'information (explication de l'onglet GPU-P...) -->
+        <Grid Grid.Row="0" Grid.RowSpan="2"
+              Visibility="{Binding IsInfoDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#B0000000" />
+            <ContentControl Content="{Binding InfoDialog}" Focusable="False" />
+        </Grid>
+
+        <!-- Voile + choix de la langue (tout premier demarrage uniquement) -->
+        <Grid Grid.Row="0" Grid.RowSpan="2"
+              Visibility="{Binding IsLanguageChoiceDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#B0000000" />
+            <ContentControl Content="{Binding LanguageChoiceDialog}" Focusable="False" />
+        </Grid>
+
     </Grid>
 </ui:FluentWindow>

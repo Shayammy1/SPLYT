@@ -61,6 +61,12 @@
             <DataTemplate DataType="{x:Type vm:ConfirmDialogViewModel}">
                 <controls:ConfirmDialog />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:InfoDialogViewModel}">
+                <controls:InfoDialog />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:LanguageChoiceDialogViewModel}">
+                <controls:LanguageChoiceDialog />
+            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

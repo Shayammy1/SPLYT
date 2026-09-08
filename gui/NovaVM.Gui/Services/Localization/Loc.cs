@@ -46,6 +46,14 @@ public static class Loc
         AppSettingsStore.Save(settings);
     }
 
+    /// <summary>Vrai tant qu'aucune langue n'a jamais ete choisie explicitement :
+    /// SPLYT demande alors la langue au tout premier demarrage, avant toute autre
+    /// chose (voir MainViewModel.RunFirstRunFlowAsync).</summary>
+    public static bool NeedsLanguageChoice => AppSettingsStore.Load().Language is null;
+
+    /// <summary>Anglais par defaut tant que rien n'a ete choisi : SPLYT est distribue
+    /// bien au-dela des francophones, et l'invite de premier demarrage laisse de toute
+    /// facon le choix immediatement.</summary>
     private static AppLanguage LoadSavedLanguage()
     {
         var settings = AppSettingsStore.Load();
@@ -53,6 +61,6 @@ public static class Loc
         {
             return parsed;
         }
-        return AppLanguage.French;
+        return AppLanguage.English;
     }
 }
