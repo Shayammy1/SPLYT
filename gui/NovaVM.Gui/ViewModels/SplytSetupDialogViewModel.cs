@@ -127,6 +127,13 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
                 await WaitUntilOffAsync();
             }
 
+            // Profite de la VM eteinte pour activer l'interface de services invite :
+            // c'est elle qui permet d'y deposer l'installeur Sunshine (Copy-VMFile),
+            // et elle n'est utilisable qu'apres un demarrage complet. L'activer ici,
+            // juste avant le redemarrage de l'etape 4, evite a l'utilisateur un
+            // aller-retour "redemarrez puis relancez l'action".
+            await _vmService.EnableGuestServicesAsync(Vm.Name);
+
             // --- 2. GPU-P (si un GPU partitionnable existe sur cet hote) ---
             Advance(++step, "Splyt_Step_Gpu");
             var gpu = _hostGpus.FirstOrDefault(g => g.PartitionSupported);
@@ -178,7 +185,18 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
                 : Loc.Get("Splyt_Report_VddFailed", vddError));
 
             // --- 6. Sunshine (streaming vers le second ecran) ---
+            // La preparation N'EST PAS optionnelle : c'est elle qui installe Moonlight
+            // sur l'hote et depose l'installeur Sunshine sur le Bureau de la VM.
+            // L'installation qui suit echoue avec "installeur introuvable" sans elle -
+            // dependance silencieuse deja signalee dans SunshineCredentialsDialogViewModel,
+            // et qui manquait bel et bien ici.
             Advance(++step, "Splyt_Step_Sunshine");
+            var (streamingPrep, prepError) = await _vmService.EnableStreamingAsync(Vm.Name);
+            if (streamingPrep is null)
+            {
+                report.AppendLine(Loc.Get("Splyt_Report_StreamingPrepFailed", prepError));
+            }
+
             var (sunshine, sunshineError) = await _vmService.InstallSunshineAutomaticallyAsync(
                 Vm.Name, ResolveUsername(Username), password);
             report.AppendLine(sunshine is not null

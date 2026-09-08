@@ -356,6 +356,16 @@ public sealed class NovaVmService
     /// etre demarree (Copy-VMFile). Laisse des etapes manuelles obligatoires
     /// (identifiants de session invite, appariement securise) - jamais
     /// automatisees en pretendant le contraire.</summary>
+    /// <summary>Active l'interface de services invite (necessaire a Copy-VMFile, donc
+    /// au depot de l'installeur Sunshine). A appeler pendant que la VM est ETEINTE :
+    /// le composant n'est utilisable qu'apres un demarrage complet - voir
+    /// Enable-NovaVmGuestServices.ps1.</summary>
+    public async Task<bool> EnableGuestServicesAsync(string name)
+    {
+        var result = await RunAsync("Enable-NovaVmGuestServices.ps1", $"Activation des services invite de '{name}'", ("Name", name));
+        return result.Success;
+    }
+
     public async Task<(StreamingSetupResultDto? Result, string? Error)> EnableStreamingAsync(string name)
     {
         var result = await RunAsync("Enable-NovaVmStreaming.ps1", $"Preparation du streaming pour '{name}'", ("Name", name));

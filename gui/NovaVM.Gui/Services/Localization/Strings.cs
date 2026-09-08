@@ -203,6 +203,7 @@ internal static class Strings
         ["Splyt_Step_Vdd"] = "Installation de l'ecran virtuel VDD...",
         ["Splyt_Step_Sunshine"] = "Installation de Sunshine...",
         ["Splyt_Step_Streaming"] = "Reglages de qualite et appariement automatique de Moonlight...",
+        ["Splyt_Report_StreamingPrepFailed"] = "Preparation du streaming (depot de l'installeur Sunshine dans la VM) : echec - {0}",
         ["Splyt_Report_StreamingOk"] = "Streaming : configure et apparie.",
         ["Splyt_Report_StreamingFailed"] = "Reglages de streaming : echec - {0}",
 
@@ -475,6 +476,7 @@ internal static class Strings
         ["Splyt_Step_Vdd"] = "Installing the VDD virtual display...",
         ["Splyt_Step_Sunshine"] = "Installing Sunshine...",
         ["Splyt_Step_Streaming"] = "Quality settings and automatic Moonlight pairing...",
+        ["Splyt_Report_StreamingPrepFailed"] = "Streaming preparation (dropping the Sunshine installer into the VM): failed - {0}",
         ["Splyt_Report_StreamingOk"] = "Streaming: configured and paired.",
         ["Splyt_Report_StreamingFailed"] = "Streaming settings: failed - {0}",
 
