@@ -180,7 +180,7 @@ function Close-NovaMountedVolumeExplorerWindow {
 function Get-NovaVmPreferences {
     param([Parameter(Mandatory)][string]$Name)
 
-    $default = [ordered]@{ name = $Name; gpuName = $null; gpuVramMb = 0; resolution = "1920x1080"; hz = 60 }
+    $default = [ordered]@{ name = $Name; gpuName = $null; gpuVramMb = 0; resolution = "1920x1080"; hz = 60; osInstalled = $false }
     $mutex = New-Object System.Threading.Mutex($false, "Global\NovaVM_PreferencesStore")
     try {
         [void]$mutex.WaitOne(5000)
@@ -201,13 +201,22 @@ function Get-NovaVmPreferences {
     }
 }
 
+# Ecrit les preferences d'une VM en FUSIONNANT avec ce qui existe deja : seuls les
+# parametres reellement passes par l'appelant sont modifies, les autres gardent leur
+# valeur enregistree. Sans ca, chaque appelant devrait repasser TOUS les champs sous
+# peine d'effacer silencieusement ceux qu'il ne connait pas (par exemple
+# Set-NovaVmGpuPartition.ps1 remettrait osInstalled a faux en changeant le GPU).
+# Meme lecon que AppSettingsStore cote C#.
 function Save-NovaVmPreferences {
     param(
         [Parameter(Mandatory)][string]$Name,
         [string]$GpuName = $null,
         [int]$GpuVramMb = 0,
         [string]$Resolution = "1920x1080",
-        [int]$Hz = 60
+        [int]$Hz = 60,
+        # "true"/"false" ; non passe = inchange (voir la remarque sur les chaines
+        # booleennes dans les autres scripts).
+        [string]$OsInstalled = ""
     )
     $mutex = New-Object System.Threading.Mutex($false, "Global\NovaVM_PreferencesStore")
     try {
@@ -222,9 +231,35 @@ function Save-NovaVmPreferences {
             }
         }
 
+        $existing = $null
+        for ($i = 0; $i -lt $all.Count; $i++) {
+            if ($all[$i].name -eq $Name) { $existing = $all[$i]; break }
+        }
+
+        # $PSBoundParameters distingue "valeur par defaut du parametre" de "valeur
+        # explicitement fournie par l'appelant" : c'est ce qui permet de fusionner
+        # plutot que de remplacer. Chaque champ garde donc sa valeur enregistree
+        # tant que l'appelant ne la fournit pas lui-meme.
+        $gpuNameValue    = if ($PSBoundParameters.ContainsKey('GpuName'))    { $GpuName }    elseif ($existing) { $existing.gpuName }    else { $null }
+        $gpuVramMbValue  = if ($PSBoundParameters.ContainsKey('GpuVramMb'))  { $GpuVramMb }  elseif ($existing) { $existing.gpuVramMb }  else { 0 }
+        $resolutionValue = if ($PSBoundParameters.ContainsKey('Resolution')) { $Resolution } elseif ($existing) { $existing.resolution } else { "1920x1080" }
+        $hzValue         = if ($PSBoundParameters.ContainsKey('Hz'))         { $Hz }         elseif ($existing) { $existing.hz }         else { 60 }
+
+        $osInstalledValue = if ($OsInstalled -ne "") {
+            ($OsInstalled -eq "true")
+        } elseif ($existing -and $null -ne $existing.osInstalled) {
+            [bool]$existing.osInstalled
+        } else {
+            $false
+        }
+
         $entry = [ordered]@{
-            name = $Name; gpuName = $GpuName; gpuVramMb = $GpuVramMb
-            resolution = $Resolution; hz = $Hz
+            name        = $Name
+            gpuName     = $gpuNameValue
+            gpuVramMb   = $gpuVramMbValue
+            resolution  = $resolutionValue
+            hz          = $hzValue
+            osInstalled = $osInstalledValue
         }
 
         $updated = New-Object System.Collections.ArrayList
@@ -275,6 +310,22 @@ function ConvertTo-NovaVmDto {
     param([Parameter(Mandatory)]$Vm)
 
     $prefs = Get-NovaVmPreferences -Name $Vm.Name
+
+    # "Windows est installe dans cette VM" : le heartbeat Hyper-V ne repond que
+    # lorsqu'un systeme a demarre normalement, donc le voir OK une seule fois
+    # suffit a le prouver - mais il retombe des que la VM s'eteint. On memorise
+    # donc le fait une fois pour toutes (osInstalled dans les preferences), ce
+    # qui couvre aussi les VMs installees avant l'existence de ce champ ou
+    # importees de l'exterieur : la premiere fois qu'elles demarrent, elles se
+    # marquent elles-memes.
+    $osInstalled = [bool]$prefs.osInstalled
+    if (-not $osInstalled -and $Vm.State -eq 'Running') {
+        $heartbeat = Get-VMIntegrationService -VMName $Vm.Name -Name "Heartbeat" -ErrorAction SilentlyContinue
+        if ($heartbeat -and $heartbeat.PrimaryStatusDescription -eq 'OK') {
+            $osInstalled = $true
+            Save-NovaVmPreferences -Name $Vm.Name -OsInstalled "true"
+        }
+    }
 
     $isoPath = $null
     $dvd = Get-VMDvdDrive -VMName $Vm.Name -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -328,6 +379,7 @@ function ConvertTo-NovaVmDto {
         diskSizeGb            = $diskSizeGb
         isoPath               = $isoPath
         needsBootKeyPress     = $needsBootKeyPress
+        osInstalled           = $osInstalled
         lastError             = $null
     }
 }

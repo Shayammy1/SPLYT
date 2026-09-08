@@ -141,6 +141,21 @@
                         <TabItem Header="{markup:Tr VmList_Tab_Resources}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
+                                <!-- Configuration en un clic : n'apparait qu'une fois Windows
+                                     installe dans la VM (avant, il n'y a rien a configurer). -->
+                                <Border Style="{StaticResource CardStyle}" Padding="16" Margin="0,0,0,20"
+                                        Visibility="{Binding CanRunSplytSetup, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{markup:Tr Splyt_CardTitle}" FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{markup:Tr Splyt_CardDesc}" FontSize="11" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,12" />
+                                        <Button Content="SPLYT" Style="{StaticResource AccentButtonStyle}"
+                                                Command="{Binding RunSplytSetupCommand}"
+                                                FontSize="15" FontWeight="Bold" Padding="30,11" HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </Border>
+
                                 <TextBlock Text="{markup:Tr VmList_Res_Vcpu}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
                                 <Grid Margin="0,6,0,4">
                                     <Grid.ColumnDefinitions>

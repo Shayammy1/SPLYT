@@ -1,4 +1,4 @@
-using NovaVM.Gui.Mvvm;
+﻿using NovaVM.Gui.Mvvm;
 using NovaVM.Gui.Services.Localization;
 using NovaVM.Gui.Services.PowerShell;
 
@@ -26,6 +26,7 @@ public sealed class VirtualMachine : ObservableObject
     private string _diskPath = "";
     private double _diskSizeGb;
     private string? _isoPath;
+    private bool _osInstalled;
     private string? _lastError;
 
     public string Id { get => _id; set => SetProperty(ref _id, value); }
@@ -52,6 +53,10 @@ public sealed class VirtualMachine : ObservableObject
     public string DiskPath { get => _diskPath; set => SetProperty(ref _diskPath, value); }
     public double DiskSizeGb { get => _diskSizeGb; set => SetProperty(ref _diskSizeGb, value); }
     public string? IsoPath { get => _isoPath; set => SetProperty(ref _isoPath, value); }
+
+    /// <summary>Vrai des qu'un Windows a demarre au moins une fois dans cette VM :
+    /// c'est ce qui rend le bouton "SPLYT" (configuration en un clic) pertinent.</summary>
+    public bool OsInstalled { get => _osInstalled; set => SetProperty(ref _osInstalled, value); }
     public string? LastError { get => _lastError; set => SetProperty(ref _lastError, value); }
 
     public bool HasGpuPartition => !string.IsNullOrWhiteSpace(GpuName);
@@ -73,6 +78,7 @@ public sealed class VirtualMachine : ObservableObject
         DiskPath = dto.DiskPath ?? "",
         DiskSizeGb = dto.DiskSizeGb,
         IsoPath = dto.IsoPath,
+        OsInstalled = dto.OsInstalled,
         LastError = dto.LastError,
     };
 
@@ -92,6 +98,7 @@ public sealed class VirtualMachine : ObservableObject
         DiskPath = dto.DiskPath ?? DiskPath;
         DiskSizeGb = dto.DiskSizeGb;
         IsoPath = dto.IsoPath;
+        OsInstalled = dto.OsInstalled;
         LastError = dto.LastError;
         OnPropertyChanged(nameof(HasGpuPartition));
         OnPropertyChanged(nameof(MemoryGb));

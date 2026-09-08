@@ -386,6 +386,16 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    /// <summary>Attend que Windows ait fini de demarrer dans la VM et reponde
+    /// (heartbeat Hyper-V) : Start-VM rend la main bien avant que PowerShell Direct
+    /// soit utilisable. Voir Wait-NovaVmGuestReady.ps1.</summary>
+    public async Task<bool> WaitForGuestReadyAsync(string name, Action<string>? onProgress = null)
+    {
+        var result = await RunAsyncCore("Wait-NovaVmGuestReady.ps1", $"Attente du demarrage de Windows dans '{name}'",
+            silent: false, onProgress, ("Name", name));
+        return result.Success;
+    }
+
     public async Task<(EnhancedSessionFixResultDto? Result, string? Error)> FixEnhancedSessionAsync(
         string name, string username, string password)
     {

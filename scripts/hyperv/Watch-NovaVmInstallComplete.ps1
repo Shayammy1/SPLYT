@@ -33,6 +33,11 @@ while ((Get-Date) -lt $deadline) {
         if ($hardDrive) {
             try { Set-VMFirmware -VMName $Name -FirstBootDevice $hardDrive -ErrorAction Stop } catch { }
         }
+
+        # Memorise que Windows est installe : c'est ce qui declenche cote GUI la
+        # proposition de configuration en un clic (bouton "SPLYT") et rend ce
+        # bouton disponible ensuite dans l'onglet Ressources.
+        try { Save-NovaVmPreferences -Name $Name -OsInstalled "true" } catch { }
         exit
     }
 }

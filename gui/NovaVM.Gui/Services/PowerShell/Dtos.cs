@@ -26,6 +26,12 @@ public sealed class VirtualMachineDto
 
     public string? IsoPath { get; set; }
     public bool NeedsBootKeyPress { get; set; }
+
+    /// <summary>Vrai des qu'un Windows a demarre au moins une fois dans cette VM
+    /// (voir ConvertTo-NovaVmDto) : c'est ce qui declenche la proposition de
+    /// configuration en un clic et rend le bouton "SPLYT" disponible.</summary>
+    public bool OsInstalled { get; set; }
+
     public string? LastError { get; set; }
 }
 

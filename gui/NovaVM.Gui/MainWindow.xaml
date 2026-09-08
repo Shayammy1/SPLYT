@@ -119,5 +119,13 @@
             <ContentControl Content="{Binding LanguageChoiceDialog}" Focusable="False" />
         </Grid>
 
+        <!-- Voile + configuration en un clic ("bouton SPLYT"), proposee des que
+             Windows a fini de s'installer dans une VM -->
+        <Grid Grid.Row="0" Grid.RowSpan="2"
+              Visibility="{Binding IsSplytSetupDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#B0000000" />
+            <ContentControl Content="{Binding SplytSetupDialog}" Focusable="False" />
+        </Grid>
+
     </Grid>
 </ui:FluentWindow>

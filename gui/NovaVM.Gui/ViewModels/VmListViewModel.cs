@@ -68,6 +68,9 @@ public sealed class VmListViewModel : ViewModelBase
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
         GamingOptimizePrivacyCommand = new AsyncRelayCommand(() => GamingOptimizeAsync(performance: false, privacy: true),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
+        RunSplytSetupCommand = new RelayCommand(
+            () => { if (SelectedVm is not null) SplytSetupSuggested?.Invoke(this, SelectedVm); },
+            () => CanRunSplytSetup);
         BrowseNvidiaDriverCommand = new RelayCommand(BrowseNvidiaDriver);
         PatchNvidiaGpuDriverCommand = new AsyncRelayCommand(PatchNvidiaGpuDriverAsync,
             () => SelectedVm is { State: VmState.Off } && !string.IsNullOrWhiteSpace(EditGpuName) && !string.IsNullOrWhiteSpace(NvidiaDriverInstallerPath));
@@ -76,6 +79,11 @@ public sealed class VmListViewModel : ViewModelBase
     }
 
     public ObservableCollection<VirtualMachine> Vms { get; } = new();
+
+    /// <summary>GPU de l'hote tels que detectes au dernier chargement - la coquille
+    /// s'en sert pour l'enchainement "SPLYT" sans avoir a les redemander a Hyper-V.</summary>
+    public IReadOnlyList<HostGpu> HostGpus => _hostGpus;
+
     public ObservableCollection<string> AvailableGpus { get; } = new();
     public ObservableCollection<string> GpuDropdownOptions { get; } = new();
 
@@ -87,6 +95,7 @@ public sealed class VmListViewModel : ViewModelBase
             if (SetProperty(ref _selectedVm, value))
             {
                 LoadEditFieldsFromSelection();
+                OnPropertyChanged(nameof(CanRunSplytSetup));
                 RaiseAllCanExecuteChanged();
             }
         }
@@ -324,6 +333,15 @@ public sealed class VmListViewModel : ViewModelBase
     public AsyncRelayCommand VddInstallCommand { get; }
     public AsyncRelayCommand GamingOptimizePerformanceCommand { get; }
     public AsyncRelayCommand GamingOptimizePrivacyCommand { get; }
+    /// <summary>Le bouton "SPLYT" de l'onglet Ressources : reste disponible une fois
+    /// Windows installe, pour relancer la configuration complete (ou la reprendre si
+    /// une etape avait echoue) sans attendre la proposition automatique.</summary>
+    public RelayCommand RunSplytSetupCommand { get; }
+
+    /// <summary>Le bouton n'a de sens qu'une fois Windows installe : avant ca, il n'y
+    /// a rien dans quoi installer VDD ou Sunshine.</summary>
+    public bool CanRunSplytSetup => SelectedVm?.OsInstalled == true;
+
     public RelayCommand BrowseNvidiaDriverCommand { get; }
     public AsyncRelayCommand PatchNvidiaGpuDriverCommand { get; }
 
@@ -339,6 +357,12 @@ public sealed class VmListViewModel : ViewModelBase
 
     /// <summary>Meme principe pour une boite purement informative.</summary>
     public event EventHandler<InfoDialogViewModel>? InfoRequested;
+
+    /// <summary>Emis quand Windows vient de finir de s'installer dans une VM : la
+    /// coquille ramene alors SPLYT au premier plan et propose la configuration en
+    /// un clic. Emis aussi quand l'utilisateur clique lui-meme sur le bouton
+    /// "SPLYT" de l'onglet Ressources.</summary>
+    public event EventHandler<VirtualMachine>? SplytSetupSuggested;
 
     /// <summary>Appele par MainViewModel une fois la boite de dialogue d'identifiants
     /// terminee avec succes, pour afficher le resultat (etapes restantes : PIN
@@ -465,7 +489,21 @@ public sealed class VmListViewModel : ViewModelBase
         foreach (var vm in Vms)
         {
             var fresh = vms.FirstOrDefault(v => v.Name == vm.Name);
-            if (fresh is null || fresh.State == vm.State) continue;
+            if (fresh is null) continue;
+
+            // Transition "Windows vient de finir de s'installer" : c'est le moment
+            // ou proposer la configuration en un clic, une seule fois par VM (le
+            // drapeau est persiste cote preferences, donc la transition ne se
+            // reproduit pas au prochain demarrage de SPLYT).
+            if (fresh.OsInstalled && !vm.OsInstalled)
+            {
+                vm.OsInstalled = true;
+                changed = true;
+                OnPropertyChanged(nameof(CanRunSplytSetup));
+                SplytSetupSuggested?.Invoke(this, vm);
+            }
+
+            if (fresh.State == vm.State) continue;
             vm.State = fresh.State;
             changed = true;
         }
@@ -768,6 +806,7 @@ public sealed class VmListViewModel : ViewModelBase
         StartCommand.RaiseCanExecuteChanged();
         StopCommand.RaiseCanExecuteChanged();
         DeleteCommand.RaiseCanExecuteChanged();
+        RunSplytSetupCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();
         OpenEnhancedSessionFixDialogCommand.RaiseCanExecuteChanged();
         VddDiagnoseCommand.RaiseCanExecuteChanged();

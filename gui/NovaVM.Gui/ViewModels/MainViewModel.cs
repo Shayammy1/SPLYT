@@ -30,6 +30,8 @@ public sealed class MainViewModel : ViewModelBase
     private InfoDialogViewModel? _infoDialog;
     private bool _isLanguageChoiceDialogOpen;
     private LanguageChoiceDialogViewModel? _languageChoiceDialog;
+    private bool _isSplytSetupDialogOpen;
+    private SplytSetupDialogViewModel? _splytSetupDialog;
     private readonly DispatcherTimer _stateRefreshTimer;
 
     public MainViewModel(NovaVmService vmService, LogService log)
@@ -61,6 +63,7 @@ public sealed class MainViewModel : ViewModelBase
         // l'afficher par-dessus toute la fenetre, comme les autres modales.
         VmList.ConfirmRequested += (_, dialog) => OpenConfirmDialog(dialog);
         VmList.InfoRequested += (_, dialog) => OpenInfoDialog(dialog);
+        VmList.SplytSetupSuggested += (_, vm) => OpenSplytSetupDialog(vm);
 
         NavItems = new ObservableCollection<NavItem>
         {
@@ -191,6 +194,9 @@ public sealed class MainViewModel : ViewModelBase
     public bool IsLanguageChoiceDialogOpen { get => _isLanguageChoiceDialogOpen; private set => SetProperty(ref _isLanguageChoiceDialogOpen, value); }
     public LanguageChoiceDialogViewModel? LanguageChoiceDialog { get => _languageChoiceDialog; private set => SetProperty(ref _languageChoiceDialog, value); }
 
+    public bool IsSplytSetupDialogOpen { get => _isSplytSetupDialogOpen; private set => SetProperty(ref _isSplytSetupDialogOpen, value); }
+    public SplytSetupDialogViewModel? SplytSetupDialog { get => _splytSetupDialog; private set => SetProperty(ref _splytSetupDialog, value); }
+
     public AsyncRelayCommand OpenCreateVmDialogCommand { get; }
     public RelayCommand CloseCreateVmDialogCommand { get; }
 
@@ -223,6 +229,43 @@ public sealed class MainViewModel : ViewModelBase
         dialog.Closed += (_, _) => IsInfoDialogOpen = false;
         InfoDialog = dialog;
         IsInfoDialogOpen = true;
+    }
+
+    /// <summary>Ouvre la configuration en un clic ("bouton SPLYT") et ramene la
+    /// fenetre au premier plan : cette boite s'ouvre notamment toute seule quand
+    /// Windows vient de finir de s'installer, moment ou l'utilisateur est en train
+    /// de regarder la VM et pas SPLYT.</summary>
+    private void OpenSplytSetupDialog(Models.VirtualMachine vm)
+    {
+        // Deja ouverte pour cette VM : ne pas la reinitialiser sous les doigts de
+        // l'utilisateur (le rafraichissement periodique peut repasser par ici).
+        if (IsSplytSetupDialogOpen && SplytSetupDialog?.VmName == vm.Name) return;
+
+        var dialog = new SplytSetupDialogViewModel(_vmService, vm, VmList.HostGpus);
+        dialog.Closed += (_, _) => IsSplytSetupDialogOpen = false;
+        dialog.VmChanged += async (_, _) => await VmList.RefreshStatesAsync();
+
+        SplytSetupDialog = dialog;
+        IsSplytSetupDialogOpen = true;
+        BringToForeground();
+    }
+
+    /// <summary>Windows empeche une application en arriere-plan de voler le premier
+    /// plan ; l'aller-retour par Topmost est la maniere usuelle de contourner ca
+    /// proprement pour une fenetre qui a une vraie raison de se montrer.</summary>
+    private static void BringToForeground()
+    {
+        var window = System.Windows.Application.Current?.MainWindow;
+        if (window is null) return;
+
+        if (window.WindowState == System.Windows.WindowState.Minimized)
+        {
+            window.WindowState = System.Windows.WindowState.Normal;
+        }
+        window.Activate();
+        window.Topmost = true;
+        window.Topmost = false;
+        window.Focus();
     }
 
     private void OpenSunshineCredentialsDialog(string vmName)
