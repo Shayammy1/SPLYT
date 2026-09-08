@@ -161,10 +161,12 @@
                         <TabItem Header="{markup:Tr VmList_Tab_Resources}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
-                                <!-- Configuration en un clic : n'apparait qu'une fois Windows
-                                     installe dans la VM (avant, il n'y a rien a configurer). -->
-                                <Border Style="{StaticResource CardStyle}" Padding="16" Margin="0,0,0,20"
-                                        Visibility="{Binding CanRunSplytSetup, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <!-- Configuration en un clic. La carte reste TOUJOURS visible :
+                                     tant que Windows n'est pas installe dans la VM le bouton est
+                                     simplement desactive, avec l'explication. Le faire disparaitre
+                                     laissait l'utilisateur sans explication ni recours si la
+                                     detection se trompait. -->
+                                <Border Style="{StaticResource CardStyle}" Padding="16" Margin="0,0,0,20">
                                     <StackPanel>
                                         <TextBlock Text="{markup:Tr Splyt_CardTitle}" FontWeight="SemiBold" FontSize="13"
                                                    Foreground="{StaticResource TextPrimaryBrush}" />
@@ -172,7 +174,11 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,12" />
                                         <Button Content="SPLYT" Style="{StaticResource AccentButtonStyle}"
                                                 Command="{Binding RunSplytSetupCommand}"
+                                                IsEnabled="{Binding CanRunSplytSetup}"
                                                 FontSize="15" FontWeight="Bold" Padding="30,11" HorizontalAlignment="Left" />
+                                        <TextBlock Text="{markup:Tr Splyt_CardUnavailable}" FontSize="11" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"
+                                                   Visibility="{Binding CannotRunSplytSetup, Converter={StaticResource BoolToVisibilityConverter}}" />
                                     </StackPanel>
                                 </Border>
 

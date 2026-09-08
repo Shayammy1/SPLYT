@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using NovaVM.Gui.Models;
 using NovaVM.Gui.Mvvm;
 using NovaVM.Gui.Services;
@@ -100,6 +100,7 @@ public sealed class VmListViewModel : ViewModelBase
             {
                 LoadEditFieldsFromSelection();
                 OnPropertyChanged(nameof(CanRunSplytSetup));
+                OnPropertyChanged(nameof(CannotRunSplytSetup));
                 RaiseAllCanExecuteChanged();
             }
         }
@@ -356,6 +357,12 @@ public sealed class VmListViewModel : ViewModelBase
     /// a rien dans quoi installer VDD ou Sunshine.</summary>
     public bool CanRunSplytSetup => SelectedVm?.OsInstalled == true;
 
+    /// <summary>Complementaire de CanRunSplytSetup : la carte "Tout configurer en un
+    /// clic" reste VISIBLE meme quand Windows n'est pas encore installe, simplement
+    /// desactivee avec son explication. Un bouton qui disparait sans rien dire laisse
+    /// l'utilisateur sans explication ni recours si la detection se trompe.</summary>
+    public bool CannotRunSplytSetup => !CanRunSplytSetup;
+
     /// <summary>Vrai pendant tout l'enchainement demarrage -> attente -> Moonlight,
     /// qui peut prendre une minute ou deux si la VM etait eteinte.</summary>
     public bool IsLaunchingMoonlight
@@ -558,6 +565,7 @@ public sealed class VmListViewModel : ViewModelBase
                 vm.OsInstalled = true;
                 changed = true;
                 OnPropertyChanged(nameof(CanRunSplytSetup));
+                OnPropertyChanged(nameof(CannotRunSplytSetup));
                 SplytSetupSuggested?.Invoke(this, vm);
             }
 
