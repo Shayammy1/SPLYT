@@ -108,6 +108,13 @@ Invoke-NovaAction {
         # Identifiants de l'interface web : indispensables pour que l'hote puisse
         # valider l'appariement par l'API. Les (re)definir est sans effet de bord :
         # Sunshine n'a pas d'autre usage de ce compte.
+        #
+        # Ecart assume a la regle du projet "jamais de secret en argument de
+        # ligne de commande" : "sunshine.exe --creds" n'offre aucune entree
+        # standard, c'est sa seule interface non interactive. Le secret concerne
+        # est tire au hasard par SPLYT, ne sert qu'a cette API locale, et n'est
+        # visible que depuis l'interieur de cette VM - contrairement au mot de
+        # passe Windows de l'utilisateur, lui toujours passe par stdin.
         $credProcess = Start-Process -FilePath $exePath -ArgumentList "--creds", $WebUser, $WebPassword `
             -Wait -PassThru -WindowStyle Hidden
         if ($credProcess.ExitCode -ne 0) {
@@ -141,19 +148,33 @@ Invoke-NovaAction {
     $previousCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
     [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
     try {
+        # Deux tests distincts, et surtout PAS un seul : /api/configLocale ne demande
+        # aucune authentification (voir la documentation de l'API), il repond donc des
+        # que Sunshine ecoute. Sonder directement un endpoint authentifie confondait
+        # deux pannes tres differentes - "Sunshine n'est pas demarre" et "mes
+        # identifiants sont refuses" - en un seul "n'a pas repondu" inexploitable.
         Write-NovaProgress "Attente de l'interface de Sunshine"
-        $ready = $false
-        for ($attempt = 0; $attempt -lt 30 -and -not $ready; $attempt++) {
+        $listening = $false
+        $lastError = $null
+        for ($attempt = 0; $attempt -lt 30 -and -not $listening; $attempt++) {
             try {
-                Invoke-RestMethod -Uri "$baseUrl/api/config" -Credential $apiCredential `
-                    -TimeoutSec 5 -ErrorAction Stop | Out-Null
-                $ready = $true
+                Invoke-RestMethod -Uri "$baseUrl/api/configLocale" -TimeoutSec 5 -ErrorAction Stop | Out-Null
+                $listening = $true
             } catch {
+                $lastError = $_.Exception.Message
                 Start-Sleep -Seconds 2
             }
         }
-        if (-not $ready) {
-            throw "L'interface web de Sunshine n'a pas repondu sur $baseUrl. Sunshine est configure, mais l'appariement automatique n'a pas pu aboutir."
+        if (-not $listening) {
+            throw "Sunshine n'ecoute pas sur $baseUrl (derniere erreur : $lastError). Verifiez qu'il est bien demarre dans la VM, et que le pare-feu de la VM autorise le port 47990."
+        }
+
+        Write-NovaProgress "Verification des identifiants de l'interface Sunshine"
+        try {
+            Invoke-RestMethod -Uri "$baseUrl/api/config" -Credential $apiCredential `
+                -TimeoutSec 10 -ErrorAction Stop | Out-Null
+        } catch {
+            throw "Sunshine repond sur $baseUrl mais refuse les identifiants definis par SPLYT ($($_.Exception.Message)). L'appariement automatique est impossible ; appariez manuellement depuis cette adresse."
         }
 
         Write-NovaProgress "Appariement de Moonlight avec Sunshine"

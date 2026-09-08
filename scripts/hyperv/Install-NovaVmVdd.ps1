@@ -120,10 +120,55 @@ Invoke-NovaAction {
                 $catBytes = [System.IO.File]::ReadAllBytes($catPath)
                 $certCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
                 $certCollection.Import($catBytes)
+
+                # Trois chemins differents vers le MEME magasin, essayes dans l'ordre.
+                # Constate en conditions reelles : Import-Certificate echoue en "Acces
+                # refuse" sur certaines images de Windows (notamment allegees type
+                # tiny11) alors meme que la session EST administrateur - le fournisseur
+                # Cert:\ de PowerShell n'est donc pas fiable partout. certutil et l'API
+                # .NET X509Store passent par des chemins de code distincts et s'en
+                # sortent la ou le fournisseur echoue. On note laquelle a fonctionne
+                # pour ne pas avoir a redeviner la prochaine fois.
+                $certMethod = $null
+                $certErrors = @()
                 foreach ($cert in $certCollection) {
                     $certFile = Join-Path $tempDir "$($cert.Thumbprint).cer"
                     [System.IO.File]::WriteAllBytes($certFile, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-                    Import-Certificate -FilePath $certFile -CertStoreLocation "Cert:\LocalMachine\TrustedPublisher" -ErrorAction Stop | Out-Null
+
+                    $imported = $false
+
+                    try {
+                        Import-Certificate -FilePath $certFile -CertStoreLocation "Cert:\LocalMachine\TrustedPublisher" -ErrorAction Stop | Out-Null
+                        $imported = $true
+                        if (-not $certMethod) { $certMethod = "Import-Certificate" }
+                    } catch { $certErrors += "Import-Certificate : $($_.Exception.Message)" }
+
+                    if (-not $imported) {
+                        try {
+                            $certutilOutput = & certutil.exe -addstore -f "TrustedPublisher" $certFile 2>&1 | Out-String
+                            if ($LASTEXITCODE -eq 0) {
+                                $imported = $true
+                                if (-not $certMethod) { $certMethod = "certutil" }
+                            } else {
+                                $certErrors += "certutil (code $LASTEXITCODE) : $certutilOutput"
+                            }
+                        } catch { $certErrors += "certutil : $($_.Exception.Message)" }
+                    }
+
+                    if (-not $imported) {
+                        try {
+                            $storeObj = New-Object System.Security.Cryptography.X509Certificates.X509Store("TrustedPublisher", "LocalMachine")
+                            $storeObj.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+                            $storeObj.Add($cert)
+                            $storeObj.Close()
+                            $imported = $true
+                            if (-not $certMethod) { $certMethod = "X509Store (.NET)" }
+                        } catch { $certErrors += "X509Store : $($_.Exception.Message)" }
+                    }
+
+                    if (-not $imported) {
+                        throw "Aucune des trois methodes d'import n'a fonctionne. " + ($certErrors -join " | ")
+                    }
                 }
 
                 $step = "installation du pilote VDD (NefCon)"
