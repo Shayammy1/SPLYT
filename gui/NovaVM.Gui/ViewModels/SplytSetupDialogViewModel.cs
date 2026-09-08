@@ -101,7 +101,7 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     /// liste se resynchronise sans attendre le rafraichissement periodique.</summary>
     public event EventHandler? VmChanged;
 
-    private const int TotalSteps = 6;
+    private const int TotalSteps = 7;
 
     private async Task RunAsync()
     {
@@ -184,6 +184,19 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
             report.AppendLine(sunshine is not null
                 ? Loc.Get("Splyt_Report_SunshineOk", sunshine.SunshineWebUiUrl)
                 : Loc.Get("Splyt_Report_SunshineFailed", sunshineError));
+
+            // --- 7. Reglages de qualite + appariement automatique ---
+            // Sans interet si Sunshine ne s'est pas installe : on ne va pas configurer
+            // puis apparier quelque chose qui n'existe pas.
+            if (sunshine is not null)
+            {
+                Advance(++step, "Splyt_Step_Streaming");
+                var (streaming, streamingError) = await _vmService.SetStreamingQualityAsync(
+                    Vm.Name, ResolveUsername(Username), password);
+                report.AppendLine(streaming is not null
+                    ? streaming.Message ?? Loc.Get("Splyt_Report_StreamingOk")
+                    : Loc.Get("Splyt_Report_StreamingFailed", streamingError));
+            }
 
             if (RememberCredentials) VmCredentialStore.Save(Vm.Name, Username, password);
             else VmCredentialStore.Delete(Vm.Name);

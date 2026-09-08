@@ -34,6 +34,8 @@ public sealed class VmListViewModel : ViewModelBase
     private bool _isInstallingGpuDriver;
     private string? _gpuDriverInstallStep;
     private bool _isGpuTabSelected;
+    private bool _isLaunchingMoonlight;
+    private string? _moonlightStatus;
 
     public VmListViewModel(NovaVmService vmService)
     {
@@ -68,6 +70,8 @@ public sealed class VmListViewModel : ViewModelBase
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
         GamingOptimizePrivacyCommand = new AsyncRelayCommand(() => GamingOptimizeAsync(performance: false, privacy: true),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
+        LaunchWithMoonlightCommand = new AsyncRelayCommand(LaunchWithMoonlightAsync,
+            () => SelectedVm?.OsInstalled == true && !IsLaunchingMoonlight);
         RunSplytSetupCommand = new RelayCommand(
             () => { if (SelectedVm is not null) SplytSetupSuggested?.Invoke(this, SelectedVm); },
             () => CanRunSplytSetup);
@@ -333,6 +337,16 @@ public sealed class VmListViewModel : ViewModelBase
     public AsyncRelayCommand VddInstallCommand { get; }
     public AsyncRelayCommand GamingOptimizePerformanceCommand { get; }
     public AsyncRelayCommand GamingOptimizePrivacyCommand { get; }
+    /// <summary>Demarre la VM si besoin puis ouvre Moonlight deja connecte : le
+    /// deuxieme joueur n'a rien a ouvrir ni a regler lui-meme. Voir
+    /// Start-NovaVmMoonlight.ps1 pour le detail des reglages de qualite.</summary>
+    public AsyncRelayCommand LaunchWithMoonlightCommand { get; }
+
+    /// <summary>Frequence demandee au flux. 100 Hz par defaut : c'est tout l'interet
+    /// de passer par VDD + Sunshine plutot que par la console vmconnect, plafonnee
+    /// bien plus bas.</summary>
+    private const int MoonlightFps = 100;
+
     /// <summary>Le bouton "SPLYT" de l'onglet Ressources : reste disponible une fois
     /// Windows installe, pour relancer la configuration complete (ou la reprendre si
     /// une etape avait echoue) sans attendre la proposition automatique.</summary>
@@ -341,6 +355,50 @@ public sealed class VmListViewModel : ViewModelBase
     /// <summary>Le bouton n'a de sens qu'une fois Windows installe : avant ca, il n'y
     /// a rien dans quoi installer VDD ou Sunshine.</summary>
     public bool CanRunSplytSetup => SelectedVm?.OsInstalled == true;
+
+    /// <summary>Vrai pendant tout l'enchainement demarrage -> attente -> Moonlight,
+    /// qui peut prendre une minute ou deux si la VM etait eteinte.</summary>
+    public bool IsLaunchingMoonlight
+    {
+        get => _isLaunchingMoonlight;
+        private set
+        {
+            if (SetProperty(ref _isLaunchingMoonlight, value)) LaunchWithMoonlightCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>Etape en cours du lancement Moonlight, ou resultat final.</summary>
+    public string? MoonlightStatus { get => _moonlightStatus; private set => SetProperty(ref _moonlightStatus, value); }
+
+    private async Task LaunchWithMoonlightAsync()
+    {
+        if (SelectedVm is null) return;
+        ErrorMessage = null;
+        IsLaunchingMoonlight = true;
+        MoonlightStatus = Loc.Get("VmList_Moonlight_Starting");
+        try
+        {
+            var (result, error) = await _vmService.StartWithMoonlightAsync(
+                SelectedVm.Name, MoonlightFps, OnMoonlightProgress);
+
+            MoonlightStatus = result is not null
+                ? result.Message
+                : Loc.Get("VmList_Moonlight_Failed", error);
+
+            // Le demarrage de la VM change son etat : on resynchronise sans attendre
+            // le rafraichissement periodique.
+            await RefreshStatesAsync();
+        }
+        finally
+        {
+            IsLaunchingMoonlight = false;
+        }
+    }
+
+    private void OnMoonlightProgress(string step)
+    {
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => { MoonlightStatus = step; });
+    }
 
     public RelayCommand BrowseNvidiaDriverCommand { get; }
     public AsyncRelayCommand PatchNvidiaGpuDriverCommand { get; }
@@ -807,6 +865,7 @@ public sealed class VmListViewModel : ViewModelBase
         StopCommand.RaiseCanExecuteChanged();
         DeleteCommand.RaiseCanExecuteChanged();
         RunSplytSetupCommand.RaiseCanExecuteChanged();
+        LaunchWithMoonlightCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();
         OpenEnhancedSessionFixDialogCommand.RaiseCanExecuteChanged();
         VddDiagnoseCommand.RaiseCanExecuteChanged();

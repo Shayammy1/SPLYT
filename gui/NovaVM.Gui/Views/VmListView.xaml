@@ -97,10 +97,21 @@
                                                Foreground="#0A0E12" />
                                 </Border>
                             </StackPanel>
-                            <TextBlock Text="{Binding SelectedVm.DisplaySummary}" FontSize="12" Margin="0,6,0,0"
+                            <!-- Coupe proprement plutot que net : la rangee de boutons a
+                                 grandi et peut desormais empieter sur ce resume. -->
+                            <TextBlock Text="{Binding SelectedVm.DisplaySummary}" FontSize="12" Margin="0,6,8,0"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding SelectedVm.DisplaySummary}"
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <!-- Lancement "deuxieme joueur" : demarre la VM au besoin puis
+                                 ouvre Moonlight deja connecte. N'apparait qu'une fois Windows
+                                 installe, sinon il n'y a rien a diffuser. -->
+                            <Button Content="{markup:Tr VmList_LaunchMoonlight}" Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding LaunchWithMoonlightCommand}" Margin="0,0,8,0"
+                                    ToolTip="{markup:Tr VmList_LaunchMoonlight_Tooltip}"
+                                    Visibility="{Binding CanRunSplytSetup, Converter={StaticResource BoolToVisibilityConverter}}" />
                             <Button Content="{markup:Tr VmList_Start}" Style="{StaticResource AccentButtonStyle}"
                                     Command="{Binding StartCommand}" Margin="0,0,8,0" />
                             <Button Content="{markup:Tr VmList_Stop}" Style="{StaticResource GhostButtonStyle}"
@@ -110,6 +121,15 @@
                                     Command="{Binding DeleteCommand}" />
                         </StackPanel>
                     </Grid>
+
+                    <!-- Progression / resultat du lancement Moonlight -->
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12"
+                                Visibility="{Binding MoonlightStatus, Converter={StaticResource NullToVisibilityConverter}}">
+                        <TextBlock Text="{Binding MoonlightStatus}" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" />
+                        <ProgressBar IsIndeterminate="True" Height="4"
+                                     Visibility="{Binding IsLaunchingMoonlight, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    </StackPanel>
 
                     <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource BorderBrush2}" Margin="0,0,0,16" />
 

@@ -207,6 +207,25 @@ public sealed class VirtualDiskDto
     public string? AttachedVm { get; set; }
 }
 
+public sealed class StreamingQualityResultDto
+{
+    public string? VmIp { get; set; }
+    public string? SunshineWebUrl { get; set; }
+    public string? KeysApplied { get; set; }
+    public bool Paired { get; set; }
+    public string? PairError { get; set; }
+    public string? Message { get; set; }
+}
+
+public sealed class MoonlightLaunchResultDto
+{
+    public string? VmIp { get; set; }
+    public string? Resolution { get; set; }
+    public int Fps { get; set; }
+    public int BitrateKbps { get; set; }
+    public string? Message { get; set; }
+}
+
 public sealed class DiagnosticsDto
 {
     public string? OsCaption { get; set; }

@@ -386,6 +386,41 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    /// <summary>Configure Sunshine pour la meilleure qualite possible et apparie
+    /// automatiquement Moonlight avec lui (plus aucun code PIN a saisir) - voir
+    /// Set-NovaVmStreamingQuality.ps1. Necessite les identifiants Windows de la VM :
+    /// les reglages s'ecrivent a l'interieur de l'invite.</summary>
+    public async Task<(StreamingQualityResultDto? Result, string? Error)> SetStreamingQualityAsync(
+        string name, string username, string password)
+    {
+        var result = await _runner.RunWithCredentialAsync(
+            "Set-NovaVmStreamingQuality.ps1", username, password, ("Name", name));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Set-NovaVmStreamingQuality.ps1",
+            $"Configuration du streaming pour '{name}' : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<StreamingQualityResultDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
+    /// <summary>Demarre la VM si necessaire, attend qu'elle soit joignable, puis ouvre
+    /// Moonlight deja connecte avec les reglages de qualite - voir
+    /// Start-NovaVmMoonlight.ps1. Ne demande aucun identifiant : tout se passe cote
+    /// hote et via Hyper-V.</summary>
+    public async Task<(MoonlightLaunchResultDto? Result, string? Error)> StartWithMoonlightAsync(
+        string name, int fps, Action<string>? onProgress = null)
+    {
+        var result = await RunAsyncCore("Start-NovaVmMoonlight.ps1", $"Lancement de '{name}' avec Moonlight",
+            silent: false, onProgress,
+            ("Name", name), ("Fps", fps.ToString(CultureInfo.InvariantCulture)));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<MoonlightLaunchResultDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     /// <summary>Attend que Windows ait fini de demarrer dans la VM et reponde
     /// (heartbeat Hyper-V) : Start-VM rend la main bien avant que PowerShell Direct
     /// soit utilisable. Voir Wait-NovaVmGuestReady.ps1.</summary>

@@ -173,6 +173,56 @@ function Close-NovaMountedVolumeExplorerWindow {
     }
 }
 
+# --- Streaming (Sunshine dans la VM / Moonlight sur l'hote) ----------------
+
+# Premiere adresse IPv4 utilisable de la VM, telle que rapportee par les services
+# d'integration Hyper-V (la VM doit donc etre demarree, avec ses services actifs).
+# Les adresses de lien-local (169.254.x) sont ecartees : elles apparaissent quand la
+# VM n'a pas encore obtenu de bail DHCP et ne sont joignables par rien.
+function Get-NovaVmIpAddress {
+    param([Parameter(Mandatory)][string]$Name)
+
+    $adapters = Get-VMNetworkAdapter -VMName $Name -ErrorAction SilentlyContinue
+    foreach ($adapter in $adapters) {
+        foreach ($ip in $adapter.IPAddresses) {
+            if ($ip -match '^\d{1,3}(\.\d{1,3}){3}$' -and $ip -ne '127.0.0.1' -and $ip -notlike '169.254.*') {
+                return $ip
+            }
+        }
+    }
+    return $null
+}
+
+# Moonlight installe sur l'HOTE (c'est lui le client d'affichage). Chemins usuels du
+# paquet officiel ; retourne $null si absent, a l'appelant de le signaler clairement.
+function Get-NovaMoonlightPath {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles "Moonlight Game Streaming\Moonlight.exe"),
+        (Join-Path ${env:ProgramFiles(x86)} "Moonlight Game Streaming\Moonlight.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Moonlight Game Streaming\Moonlight.exe")
+    )
+    foreach ($path in $candidates) {
+        if ($path -and (Test-Path -LiteralPath $path)) { return $path }
+    }
+    return $null
+}
+
+# Debit video conseille, en kbit/s, pour un flux LOCAL (l'hote et la VM sont la meme
+# machine : pas de reseau physique a menager). Les valeurs par defaut de Moonlight
+# sont calibrees pour du Wi-Fi domestique et laissent enormement de qualite sur la
+# table ici. On vise ~0,5 bit par pixel affiche, plafonne pour ne pas noyer le
+# decodeur sans gain visible.
+function Get-NovaStreamBitrateKbps {
+    param(
+        [Parameter(Mandatory)][int]$Width,
+        [Parameter(Mandatory)][int]$Height,
+        [Parameter(Mandatory)][int]$Fps
+    )
+    $bitsPerPixel = 0.5
+    $kbps = [int]([double]$Width * $Height * $Fps * $bitsPerPixel / 1000)
+    return [Math]::Max(20000, [Math]::Min(150000, $kbps))
+}
+
 # --- Preferences par VM (GPU-P choisi, resolution/Hz) ----------------------
 # Pas d'equivalent Hyper-V simple pour ces reglages : garde en local, cle par
 # nom de VM, decouple de l'identite/l'etat reel de la VM (qui vient de Get-VM).
@@ -486,6 +536,9 @@ Export-ModuleMember -Function `
     Get-NovaDataStorePath, `
     Get-NovaHostMemoryInfo, `
     Close-NovaMountedVolumeExplorerWindow, `
+    Get-NovaVmIpAddress, `
+    Get-NovaMoonlightPath, `
+    Get-NovaStreamBitrateKbps, `
     Get-NovaVmPreferences, `
     Save-NovaVmPreferences, `
     Remove-NovaVmPreferences, `
