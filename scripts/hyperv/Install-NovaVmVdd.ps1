@@ -56,6 +56,20 @@ Invoke-NovaAction {
     $outcome = $null
     try {
         $outcome = Invoke-Command -VMName $Name -Credential $credential -ErrorAction Stop -ScriptBlock {
+            # Etape en cours, remontee telle quelle en cas d'echec : sans elle, toutes
+            # les pannes se ressemblent ("Acces refuse") alors qu'elles n'ont pas du
+            # tout les memes causes ni les memes remedes.
+            $step = "verification d'un VDD deja present"
+
+            # PowerShell Direct ouvre une session AVEC le jeton filtre par le controle
+            # de compte d'utilisateur quand le compte est LOCAL : le compte a beau etre
+            # administrateur, la session n'a pas ses privileges. Or importer un
+            # certificat dans le magasin machine et installer un pilote les exigent -
+            # d'ou un "Acces refuse" impossible a interpreter sans cette information.
+            $isElevated = ([Security.Principal.WindowsPrincipal] `
+                [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+                    [Security.Principal.WindowsBuiltInRole]::Administrator)
+
             $existing = Get-PnpDevice -Class Display -ErrorAction SilentlyContinue |
                 Where-Object { $_.FriendlyName -eq 'Virtual Display Driver' }
             if ($existing) {
@@ -102,6 +116,7 @@ Invoke-NovaAction {
                     throw "Fichiers du pilote VDD introuvables apres extraction ($infPath)."
                 }
 
+                $step = "import du certificat du pilote dans le magasin machine"
                 $catBytes = [System.IO.File]::ReadAllBytes($catPath)
                 $certCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
                 $certCollection.Import($catBytes)
@@ -111,6 +126,7 @@ Invoke-NovaAction {
                     Import-Certificate -FilePath $certFile -CertStoreLocation "Cert:\LocalMachine\TrustedPublisher" -ErrorAction Stop | Out-Null
                 }
 
+                $step = "installation du pilote VDD (NefCon)"
                 Push-Location $tempDir
                 try {
                     $nefconOutput = & $nefconExe install ".\VirtualDisplayDriver\MttVDD.inf" "Root\MttVDD" 2>&1 | Out-String
@@ -135,11 +151,21 @@ Invoke-NovaAction {
                     ErrorMessage     = $null
                 }
             } catch {
+                # Le "pourquoi" compte autant que le "quoi" : etape exacte, et si la
+                # session invite avait ou non les privileges administrateur reels.
+                $detail = "Echec a l'etape : $step. Detail : $($_.Exception.Message)"
+                if (-not $isElevated) {
+                    $detail += " La session ouverte dans la VM N'A PAS les privileges administrateur reels" +
+                        " (jeton filtre par le controle de compte d'utilisateur), ce qui explique un refus d'acces" +
+                        " sur l'import de certificat ou l'installation du pilote, meme avec un compte administrateur."
+                }
                 [pscustomobject]@{
                     AlreadyInstalled = $false
                     Success          = $false
                     VddStatus        = $null
-                    ErrorMessage     = $_.Exception.Message
+                    IsElevated       = $isElevated
+                    FailedStep       = $step
+                    ErrorMessage     = $detail
                 }
             } finally {
                 Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
