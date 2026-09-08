@@ -29,10 +29,11 @@ Invoke-NovaAction {
             throw "La VM '$Name' n'est pas en cours d'execution (etat : $($vm.State))."
         }
 
-        $heartbeat = Get-VMIntegrationService -VMName $Name -Name "Heartbeat" -ErrorAction SilentlyContinue
-        $state = if ($heartbeat) { $heartbeat.PrimaryStatusDescription } else { $null }
+        # Par GUID et non par nom : les noms des services d'integration sont traduits
+        # par Windows (voir Test-NovaVmHeartbeatOk).
+        $state = if (Test-NovaVmHeartbeatOk -Name $Name) { 'OK' } else { 'en attente' }
         if ($state -ne $lastState) {
-            Write-NovaProgress "Demarrage de Windows dans la VM ($(if ($state) { $state } else { 'en attente' }))"
+            Write-NovaProgress "Demarrage de Windows dans la VM ($state)"
             $lastState = $state
         }
 

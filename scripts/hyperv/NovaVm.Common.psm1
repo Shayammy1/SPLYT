@@ -173,6 +173,27 @@ function Close-NovaMountedVolumeExplorerWindow {
     }
 }
 
+# Vrai quand le heartbeat Hyper-V de la VM repond : c'est LA preuve qu'un systeme a
+# demarre normalement a l'interieur, services d'integration compris.
+#
+# Le filtre se fait sur le GUID du composant, JAMAIS sur son nom : les noms des
+# services d'integration sont TRADUITS par Windows ("Heartbeat" en anglais mais
+# "Pulsation" en francais). Un "Get-VMIntegrationService -Name 'Heartbeat'" ne
+# renvoie donc rien du tout sur un Windows francais - sans erreur, ce qui donne un
+# echec parfaitement silencieux : SPLYT concluait "Windows n'est pas installe" sur
+# une VM parfaitement demarree. Meme raison que le SID en dur pour les groupes
+# locaux et que le GUID de l'interface de services invite dans
+# Enable-NovaVmStreaming.ps1.
+function Test-NovaVmHeartbeatOk {
+    param([Parameter(Mandatory)][string]$Name)
+
+    $heartbeat = Get-VMIntegrationService -VMName $Name -ErrorAction SilentlyContinue |
+        Where-Object { $_.Id -like "*84EAAE65-2F2E-45F5-9BB5-0E857DC8EB47*" } |
+        Select-Object -First 1
+
+    return [bool]($heartbeat -and $heartbeat.PrimaryStatusDescription -eq 'OK')
+}
+
 # --- Streaming (Sunshine dans la VM / Moonlight sur l'hote) ----------------
 
 # Premiere adresse IPv4 utilisable de la VM, telle que rapportee par les services
@@ -369,12 +390,9 @@ function ConvertTo-NovaVmDto {
     # importees de l'exterieur : la premiere fois qu'elles demarrent, elles se
     # marquent elles-memes.
     $osInstalled = [bool]$prefs.osInstalled
-    if (-not $osInstalled -and $Vm.State -eq 'Running') {
-        $heartbeat = Get-VMIntegrationService -VMName $Vm.Name -Name "Heartbeat" -ErrorAction SilentlyContinue
-        if ($heartbeat -and $heartbeat.PrimaryStatusDescription -eq 'OK') {
-            $osInstalled = $true
-            Save-NovaVmPreferences -Name $Vm.Name -OsInstalled "true"
-        }
+    if (-not $osInstalled -and $Vm.State -eq 'Running' -and (Test-NovaVmHeartbeatOk -Name $Vm.Name)) {
+        $osInstalled = $true
+        Save-NovaVmPreferences -Name $Vm.Name -OsInstalled "true"
     }
 
     $isoPath = $null
@@ -536,6 +554,7 @@ Export-ModuleMember -Function `
     Get-NovaDataStorePath, `
     Get-NovaHostMemoryInfo, `
     Close-NovaMountedVolumeExplorerWindow, `
+    Test-NovaVmHeartbeatOk, `
     Get-NovaVmIpAddress, `
     Get-NovaMoonlightPath, `
     Get-NovaStreamBitrateKbps, `

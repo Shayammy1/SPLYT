@@ -25,8 +25,11 @@ while ((Get-Date) -lt $deadline) {
     if (-not $vm) { exit }                      # VM supprimee entre-temps
     if ($vm.State -ne 'Running') { continue }    # eteinte/en pause : on continue d'attendre
 
-    $heartbeat = Get-VMIntegrationService -VMName $Name -Name "Heartbeat" -ErrorAction SilentlyContinue
-    if ($heartbeat -and $heartbeat.PrimaryStatusDescription -eq 'OK') {
+    # Test-NovaVmHeartbeatOk et pas "-Name Heartbeat" : ce nom est traduit par
+    # Windows ("Pulsation" en francais), donc le filtre par nom ne trouvait jamais
+    # rien sur un Windows non anglais - et ce script ne remettait donc jamais le
+    # disque dur en premier peripherique de demarrage.
+    if (Test-NovaVmHeartbeatOk -Name $Name) {
         # Heartbeat actif = Windows a demarre normalement (donc l'installation
         # est terminee) : on remet le disque dur en premier au boot.
         $hardDrive = Get-VMHardDiskDrive -VMName $Name -ErrorAction SilentlyContinue | Select-Object -First 1

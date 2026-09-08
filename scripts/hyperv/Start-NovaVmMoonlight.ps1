@@ -64,8 +64,8 @@ Invoke-NovaAction {
     $vmIp = $null
     $deadline = (Get-Date).AddMinutes(5)
     while ((Get-Date) -lt $deadline -and -not $vmIp) {
-        $heartbeat = Get-VMIntegrationService -VMName $Name -Name "Heartbeat" -ErrorAction SilentlyContinue
-        if ($heartbeat -and $heartbeat.PrimaryStatusDescription -eq 'OK') {
+        # Par GUID et non par nom traduit - voir Test-NovaVmHeartbeatOk.
+        if (Test-NovaVmHeartbeatOk -Name $Name) {
             $vmIp = Get-NovaVmIpAddress -Name $Name
         }
         if (-not $vmIp) { Start-Sleep -Seconds 3 }
