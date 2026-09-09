@@ -61,11 +61,13 @@ Invoke-NovaAction {
             # tout les memes causes ni les memes remedes.
             $step = "verification d'un VDD deja present"
 
-            # PowerShell Direct ouvre une session AVEC le jeton filtre par le controle
-            # de compte d'utilisateur quand le compte est LOCAL : le compte a beau etre
-            # administrateur, la session n'a pas ses privileges. Or importer un
-            # certificat dans le magasin machine et installer un pilote les exigent -
-            # d'ou un "Acces refuse" impossible a interpreter sans cette information.
+            # Remonte si la session invite a REELLEMENT les privileges administrateur.
+            # Mesure en conditions reelles (compte local administrateur, image tiny11) :
+            # elle les avait, et l'import de certificat echouait quand meme en "Acces
+            # refuse" - le jeton filtre par le controle de compte d'utilisateur n'est
+            # donc PAS l'explication, contrairement a ce qu'on aurait pu croire. On
+            # garde la mesure : c'est elle qui a permis d'ecarter cette piste, et elle
+            # ecartera la meme fausse piste sur une autre machine.
             $isElevated = ([Security.Principal.WindowsPrincipal] `
                 [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
                     [Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -99,6 +101,7 @@ Invoke-NovaAction {
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
             try {
+                $step = "telechargement de NefCon et du pilote VDD depuis GitHub (necessite un acces internet DANS la VM)"
                 $nefconZip = Join-Path $tempDir "nefcon.zip"
                 Invoke-WebRequest -Uri $nefConUrl -OutFile $nefconZip -UseBasicParsing -ErrorAction Stop
                 Expand-Archive -Path $nefconZip -DestinationPath $tempDir -Force -ErrorAction Stop

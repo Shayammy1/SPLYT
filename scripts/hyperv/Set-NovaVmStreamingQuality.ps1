@@ -147,6 +147,13 @@ Invoke-NovaAction {
     # rappel de validation, retabli en fin de script.
     $previousCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
     [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+
+    # Windows PowerShell 5.1 negocie encore SSL3/TLS 1.0 par defaut, que Sunshine
+    # refuse : la connexion est alors coupee net avec "La connexion sous-jacente a
+    # ete fermee", message qui ressemble a s'y meprendre a un pare-feu ou a un
+    # service arrete. Rien a voir - il faut simplement lui imposer TLS 1.2.
+    $previousProtocol = [System.Net.ServicePointManager]::SecurityProtocol
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
     try {
         # Deux tests distincts, et surtout PAS un seul : /api/configLocale ne demande
         # aucune authentification (voir la documentation de l'API), il repond donc des
@@ -245,5 +252,6 @@ Invoke-NovaAction {
         Write-NovaResult -Success $true -DataJson ([pscustomobject]$result | ConvertTo-Json -Compress)
     } finally {
         [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
+        [System.Net.ServicePointManager]::SecurityProtocol = $previousProtocol
     }
 }
