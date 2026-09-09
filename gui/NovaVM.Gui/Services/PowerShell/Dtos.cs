@@ -226,6 +226,16 @@ public sealed class MoonlightLaunchResultDto
     public string? Message { get; set; }
 }
 
+public sealed class NetworkRepairResultDto
+{
+    public string? GatewayBefore { get; set; }
+    public string? GatewayAfter { get; set; }
+    public bool WorkedBefore { get; set; }
+    public bool WorkedAfter { get; set; }
+    public bool IcsRestarted { get; set; }
+    public string? Message { get; set; }
+}
+
 public sealed class DiagnosticsDto
 {
     public string? OsCaption { get; set; }

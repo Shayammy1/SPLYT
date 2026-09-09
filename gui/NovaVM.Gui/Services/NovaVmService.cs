@@ -356,6 +356,24 @@ public sealed class NovaVmService
     /// etre demarree (Copy-VMFile). Laisse des etapes manuelles obligatoires
     /// (identifiants de session invite, appariement securise) - jamais
     /// automatisees en pretendant le contraire.</summary>
+    /// <summary>Repare le routage du commutateur "Default Switch" quand il ne route
+    /// plus (les VMs obtiennent une adresse mais n'ont plus internet) - voir
+    /// Repair-NovaVmNetwork.ps1. Necessite une elevation : desactiver une carte
+    /// reseau et redemarrer un service systeme l'exigent tous les deux.</summary>
+    public async Task<(NetworkRepairResultDto? Result, string? Error)> RepairVmNetworkAsync(
+        Action<string>? onProgress = null)
+    {
+        var result = await _runner.RunElevatedAsync("Repair-NovaVmNetwork.ps1", onProgress);
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Repair-NovaVmNetwork.ps1",
+            "Reparation du reseau des VMs : " + (result.Success ? "terminee" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<NetworkRepairResultDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     /// <summary>Active l'interface de services invite (necessaire a Copy-VMFile, donc
     /// au depot de l'installeur Sunshine). A appeler pendant que la VM est ETEINTE :
     /// le composant n'est utilisable qu'apres un demarrage complet - voir

@@ -46,6 +46,9 @@
             <DataTemplate DataType="{x:Type vm:JournalViewModel}">
                 <views:JournalView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:DebugViewModel}">
+                <views:DebugView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:CreateVmDialogViewModel}">
                 <controls:CreateVmDialog />
             </DataTemplate>

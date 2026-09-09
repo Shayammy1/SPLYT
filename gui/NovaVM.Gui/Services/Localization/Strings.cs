@@ -17,6 +17,7 @@ internal static class Strings
         ["Nav_Gpu"] = "GPU",
         ["Nav_Storage"] = "Stockage",
         ["Nav_Journal"] = "Journal",
+        ["Nav_Debug"] = "Depannage",
         ["Nav_Settings"] = "Parametres",
         ["Common_Refresh"] = "Actualiser",
         ["Common_GbUnit"] = " Go",
@@ -45,6 +46,15 @@ internal static class Strings
 
         // --- Journal ---
         ["Journal_Subtitle"] = "Historique des operations effectuees sur les VMs (le plus recent en premier)",
+
+        // --- Depannage ---
+        ["Debug_Subtitle"] = "Reparations qui concernent cet ordinateur plutot qu'une VM en particulier.",
+        ["Debug_Network_Title"] = "Reparer l'acces internet des VMs",
+        ["Debug_Network_Desc"] = "Le commutateur \"Default Switch\" de Hyper-V cesse parfois de router : vos VMs obtiennent bien une adresse, mais n'ont plus d'acces internet ni de resolution de noms. Vu de l'interieur d'une VM, tout a l'air normal. Cette panne empeche notamment l'installation automatique de l'ecran virtuel VDD, qui telecharge son pilote depuis GitHub.\n\nSPLYT teste l'acces reseau, redemarre le service de partage de connexion, reactive la carte du commutateur, puis reteste pour vous dire si ca a servi a quelque chose.",
+        ["Debug_Network_Warning"] = "Necessite les droits administrateur (invite Windows). Les VMs demarrees perdront le reseau quelques secondes, et leur adresse peut changer.",
+        ["Debug_Network_Button"] = "Reparer le reseau des VMs",
+        ["Debug_Network_InProgress"] = "Reparation du reseau en cours...",
+        ["Debug_Network_Failed"] = "La reparation a echoue : {0}",
 
         // --- Parametres ---
         ["Settings_Title"] = "Parametres",
@@ -290,6 +300,7 @@ internal static class Strings
         ["Nav_Gpu"] = "GPU",
         ["Nav_Storage"] = "Storage",
         ["Nav_Journal"] = "Log",
+        ["Nav_Debug"] = "Troubleshooting",
         ["Nav_Settings"] = "Settings",
         ["Common_Refresh"] = "Refresh",
         ["Common_GbUnit"] = " GB",
@@ -320,6 +331,15 @@ internal static class Strings
         ["Journal_Subtitle"] = "History of operations performed on VMs (most recent first)",
 
         // --- Settings ---
+        // --- Troubleshooting ---
+        ["Debug_Subtitle"] = "Repairs that concern this computer rather than one particular VM.",
+        ["Debug_Network_Title"] = "Repair internet access for VMs",
+        ["Debug_Network_Desc"] = "Hyper-V's \"Default Switch\" sometimes stops routing: your VMs still get an address, but have no internet and no name resolution. From inside a VM everything looks normal. This failure notably blocks the automatic VDD virtual display install, which downloads its driver from GitHub.\n\nSPLYT tests network access, restarts the connection sharing service, re-enables the switch adapter, then tests again to tell you whether it actually helped.",
+        ["Debug_Network_Warning"] = "Requires administrator rights (Windows prompt). Running VMs will lose the network for a few seconds, and their address may change.",
+        ["Debug_Network_Button"] = "Repair the VM network",
+        ["Debug_Network_InProgress"] = "Repairing the network...",
+        ["Debug_Network_Failed"] = "The repair failed: {0}",
+
         ["Settings_Title"] = "Settings",
         ["Settings_Subtitle"] = "Preferences and Hyper-V/GPU-P environment diagnostics",
         ["Settings_RefreshDiagnostics"] = "Refresh diagnostics",

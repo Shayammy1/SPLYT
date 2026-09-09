@@ -46,6 +46,7 @@ public sealed class MainViewModel : ViewModelBase
         Storage = new StorageViewModel(vmService);
         Settings = new SettingsViewModel(vmService, log);
         Journal = new JournalViewModel(log);
+        Debug = new DebugViewModel(vmService);
 
         // Quand une VM change (creee/demarree/supprimee...), le Dashboard se
         // rafraichit pour rester coherent avec l'onglet "Machines virtuelles".
@@ -72,6 +73,7 @@ public sealed class MainViewModel : ViewModelBase
             new() { Title = Loc.Get("Nav_Gpu"), Icon = "\U0001F3AE", ViewModel = Gpu },
             new() { Title = Loc.Get("Nav_Storage"), Icon = "\U0001F4BE", ViewModel = Storage },
             new() { Title = Loc.Get("Nav_Journal"), Icon = "\U0001F4CB", ViewModel = Journal },
+            new() { Title = Loc.Get("Nav_Debug"), Icon = "\U0001F527", ViewModel = Debug },
             new() { Title = Loc.Get("Nav_Settings"), Icon = "⚙", ViewModel = Settings },
         };
 
@@ -171,6 +173,7 @@ public sealed class MainViewModel : ViewModelBase
     public GpuViewModel Gpu { get; }
     public StorageViewModel Storage { get; }
     public SettingsViewModel Settings { get; }
+    public DebugViewModel Debug { get; }
     public JournalViewModel Journal { get; }
 
     public bool IsCreateDialogOpen { get => _isCreateDialogOpen; private set => SetProperty(ref _isCreateDialogOpen, value); }
