@@ -117,6 +117,8 @@ internal static class Strings
 
         ["VmList_Tab_Resources"] = "Ressources",
         ["VmList_Tab_Display"] = "Affichage",
+        ["VmList_Tab_Console"] = "Console",
+        ["VmList_Console_NotRunning"] = "Demarrez la VM pour voir sa console ici, dans SPLYT.",
 
         ["VmList_Res_Vcpu"] = "Processeurs virtuels (vCPU)",
         ["VmList_Res_Ram"] = "Memoire vive (Go)",
@@ -409,6 +411,8 @@ internal static class Strings
 
         ["VmList_Tab_Resources"] = "Resources",
         ["VmList_Tab_Display"] = "Display",
+        ["VmList_Tab_Console"] = "Console",
+        ["VmList_Console_NotRunning"] = "Start the VM to see its console here, inside SPLYT.",
 
         ["VmList_Res_Vcpu"] = "Virtual processors (vCPU)",
         ["VmList_Res_Ram"] = "Memory (GB)",

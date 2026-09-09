@@ -41,11 +41,17 @@ public sealed class VirtualMachine : ObservableObject
             {
                 OnPropertyChanged(nameof(StateDisplay));
                 OnPropertyChanged(nameof(StateSortKey));
+                OnPropertyChanged(nameof(IsRunning));
             }
         }
     }
 
     public string StateDisplay => State.ToDisplayString();
+
+    /// <summary>Utilise notamment par la console integree : ouvrir vmconnect sur
+    /// une machine eteinte n'afficherait que son propre ecran "l'ordinateur
+    /// virtuel est eteint", avec son habillage a lui.</summary>
+    public bool IsRunning => State == VmState.Running;
 
     public int Cpu { get => _cpu; set => SetProperty(ref _cpu, value); }
     public long MemoryMb { get => _memoryMb; set => SetProperty(ref _memoryMb, value); }
