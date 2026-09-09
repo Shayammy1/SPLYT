@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:NovaVM.Gui.ViewModels"
              xmlns:markup="clr-namespace:NovaVM.Gui.Markup"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:DebugViewModel}">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -15,25 +16,52 @@
                        Foreground="{StaticResource TextSecondaryBrush}" />
 
             <Border Style="{StaticResource CardStyle}">
-                <StackPanel>
-                    <TextBlock Text="{markup:Tr Debug_Network_Title}" FontSize="16" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                    <TextBlock Text="{markup:Tr Debug_Network_Desc}" FontSize="12" TextWrapping="Wrap" LineHeight="19"
-                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12" />
-                    <TextBlock Text="{markup:Tr Debug_Network_Warning}" FontSize="11.5" TextWrapping="Wrap"
-                               Foreground="{StaticResource WarningBrush}" Margin="0,0,0,16" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                    <Button Content="{markup:Tr Debug_Network_Button}" Style="{StaticResource AccentButtonStyle}"
-                            Command="{Binding RepairNetworkCommand}" HorizontalAlignment="Left" />
+                    <Border Grid.Column="0" Style="{StaticResource IconBadgeStyle}"
+                            Background="{StaticResource IconBlueBrush}" Margin="0,0,16,0"
+                            VerticalAlignment="Top">
+                        <ui:SymbolIcon Symbol="Globe24" FontSize="22"
+                                       Foreground="{StaticResource IconBlueForeground}" />
+                    </Border>
 
-                    <StackPanel Margin="0,14,0,0"
-                                Visibility="{Binding NetworkRepairStatus, Converter={StaticResource NullToVisibilityConverter}}">
-                        <TextBlock Text="{Binding NetworkRepairStatus}" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" />
-                        <ProgressBar IsIndeterminate="True" Height="4"
-                                     Visibility="{Binding IsRepairingNetwork, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{markup:Tr Debug_Network_Title}" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <TextBlock Text="{markup:Tr Debug_Network_Desc}" FontSize="12" TextWrapping="Wrap" LineHeight="19"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12" />
+
+                        <Border Style="{StaticResource SettingCardStyle}" Padding="12,10" Margin="0,0,0,16"
+                                Background="#2A2415" BorderBrush="#4A3D1A">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Warning24" FontSize="15" VerticalAlignment="Top" Margin="0,1,10,0"
+                                               Foreground="{StaticResource WarningBrush}" />
+                                <TextBlock Text="{markup:Tr Debug_Network_Warning}" FontSize="11.5" TextWrapping="Wrap"
+                                           MaxWidth="620" Foreground="{StaticResource WarningBrush}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Button Style="{StaticResource AccentButtonStyle}"
+                                Command="{Binding RepairNetworkCommand}" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Wrench24" FontSize="14" Margin="0,0,8,0" />
+                                <TextBlock Text="{markup:Tr Debug_Network_Button}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <StackPanel Margin="0,14,0,0"
+                                    Visibility="{Binding NetworkRepairStatus, Converter={StaticResource NullToVisibilityConverter}}">
+                            <TextBlock Text="{Binding NetworkRepairStatus}" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" />
+                            <ProgressBar IsIndeterminate="True" Height="4"
+                                         Visibility="{Binding IsRepairingNetwork, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </Grid>
             </Border>
         </StackPanel>
     </ScrollViewer>

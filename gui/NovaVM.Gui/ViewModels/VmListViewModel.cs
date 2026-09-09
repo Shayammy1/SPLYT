@@ -1,4 +1,6 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Data;
 using NovaVM.Gui.Models;
 using NovaVM.Gui.Mvvm;
 using NovaVM.Gui.Services;
@@ -36,6 +38,8 @@ public sealed class VmListViewModel : ViewModelBase
     private bool _isGpuTabSelected;
     private bool _isLaunchingMoonlight;
     private string? _moonlightStatus;
+    private string _searchText = "";
+    private VmSortMode _sortMode = VmSortMode.State;
 
     public VmListViewModel(NovaVmService vmService)
     {
@@ -79,10 +83,131 @@ public sealed class VmListViewModel : ViewModelBase
         PatchNvidiaGpuDriverCommand = new AsyncRelayCommand(PatchNvidiaGpuDriverAsync,
             () => SelectedVm is { State: VmState.Off } && !string.IsNullOrWhiteSpace(EditGpuName) && !string.IsNullOrWhiteSpace(NvidiaDriverInstallerPath));
 
+        SortByNameCommand = new RelayCommand(() => SortMode = VmSortMode.Name);
+        SortByStateCommand = new RelayCommand(() => SortMode = VmSortMode.State);
+        ClearSearchCommand = new RelayCommand(() => SearchText = "");
+        CopyIsoPathCommand = new RelayCommand(CopyIsoPath,
+            () => !string.IsNullOrWhiteSpace(SelectedVm?.IsoPath));
+
+        // ListCollectionView construite directement, et NON CollectionViewSource.View :
+        // cette derniere renvoie une vue dont le CollectionViewSource reste
+        // proprietaire, et l'objet n'etant reference nulle part il finissait
+        // ramasse - Refresh() levait alors une NullReferenceException dans
+        // ListCollectionView.PrepareLocalArray et la liste se vidait.
+        VmsView = new ListCollectionView(Vms) { Filter = FilterVm };
+        Vms.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(VisibleVmCount));
+            OnPropertyChanged(nameof(ShowNoSearchResult));
+        };
+        ApplySort();
+
         _ = LoadAsync();
     }
 
     public ObservableCollection<VirtualMachine> Vms { get; } = new();
+
+    /// <summary>Vue filtree/triee de Vms, a laquelle la liste se lie - et NON Vms
+    /// directement, que la page Accueil partage (voir DashboardViewModel) : filtrer
+    /// la collection elle-meme viderait aussi la liste de l'accueil. Une vue qui
+    /// nous appartient laisse la vue par defaut, celle de l'accueil, intacte.</summary>
+    public ICollectionView VmsView { get; }
+
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (SetProperty(ref _searchText, value))
+            {
+                VmsView.Refresh();
+                OnPropertyChanged(nameof(HasSearchText));
+                OnPropertyChanged(nameof(VisibleVmCount));
+                OnPropertyChanged(nameof(ShowNoSearchResult));
+            }
+        }
+    }
+
+    public bool HasSearchText => !string.IsNullOrWhiteSpace(SearchText);
+
+    /// <summary>Nombre de VMs reellement affichees - le total serait faux des qu'une
+    /// recherche est active. Reapplique le filtre plutot que d'enumerer la vue :
+    /// parcourir la vue pendant qu'elle traite une notification de collection la
+    /// laisse dans un etat incoherent.</summary>
+    public int VisibleVmCount => Vms.Count(FilterVm);
+
+    /// <summary>Une liste vide parce qu'on cherche quelque chose d'introuvable n'est
+    /// pas la meme chose qu'une liste vide parce qu'aucune VM n'existe : seul le
+    /// premier cas merite le message "aucun resultat".</summary>
+    public bool ShowNoSearchResult => HasSearchText && VisibleVmCount == 0;
+
+    /// <summary>Tri courant de la liste. Par etat = les VMs en cours d'abord, ce qui
+    /// est ce qu'on cherche en premier quand plusieurs machines existent.</summary>
+    public VmSortMode SortMode
+    {
+        get => _sortMode;
+        set
+        {
+            if (SetProperty(ref _sortMode, value))
+            {
+                ApplySort();
+                OnPropertyChanged(nameof(SortByNameChecked));
+                OnPropertyChanged(nameof(SortByStateChecked));
+            }
+        }
+    }
+
+    public bool SortByNameChecked => SortMode == VmSortMode.Name;
+    public bool SortByStateChecked => SortMode == VmSortMode.State;
+
+    public RelayCommand SortByNameCommand { get; }
+    public RelayCommand SortByStateCommand { get; }
+    public RelayCommand ClearSearchCommand { get; }
+
+    /// <summary>Copie le chemin de l'ISO montee : ces chemins sont longs et on en a
+    /// besoin ailleurs (autre VM, rapport de bug), le selectionner a la souris dans
+    /// un libelle n'etait pas possible.</summary>
+    public RelayCommand CopyIsoPathCommand { get; }
+
+    private void ApplySort()
+    {
+        VmsView.SortDescriptions.Clear();
+        if (SortMode == VmSortMode.State)
+        {
+            // VmState est un enum dont Running ne vaut pas 0 : on trie sur une cle
+            // calculee par le modele plutot que sur l'enum brut, pour que "en cours"
+            // remonte reellement en tete.
+            VmsView.SortDescriptions.Add(new SortDescription(nameof(VirtualMachine.StateSortKey), ListSortDirection.Ascending));
+        }
+        VmsView.SortDescriptions.Add(new SortDescription(nameof(VirtualMachine.Name), ListSortDirection.Ascending));
+    }
+
+    private bool FilterVm(object item)
+    {
+        if (item is not VirtualMachine vm) return false;
+        if (string.IsNullOrWhiteSpace(SearchText)) return true;
+
+        // Recherche sur le nom ET sur le resume (vCPU, RAM, resolution) : on cherche
+        // souvent "16 Go" ou "1920" autant qu'un nom.
+        var needle = SearchText.Trim();
+        return vm.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)
+            || (vm.DisplaySummary?.Contains(needle, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private void CopyIsoPath()
+    {
+        var path = SelectedVm?.IsoPath;
+        if (string.IsNullOrWhiteSpace(path)) return;
+        try
+        {
+            System.Windows.Clipboard.SetDataObject(path, copy: true);
+        }
+        catch
+        {
+            // Presse-papiers momentanement verrouille par une autre application :
+            // sans consequence, l'utilisateur peut reessayer.
+        }
+    }
 
     /// <summary>GPU de l'hote tels que detectes au dernier chargement - la coquille
     /// s'en sert pour l'enchainement "SPLYT" sans avoir a les redemander a Hyper-V.</summary>

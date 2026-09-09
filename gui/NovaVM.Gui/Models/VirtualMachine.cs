@@ -37,7 +37,11 @@ public sealed class VirtualMachine : ObservableObject
         get => _state;
         set
         {
-            if (SetProperty(ref _state, value)) OnPropertyChanged(nameof(StateDisplay));
+            if (SetProperty(ref _state, value))
+            {
+                OnPropertyChanged(nameof(StateDisplay));
+                OnPropertyChanged(nameof(StateSortKey));
+            }
         }
     }
 
@@ -60,6 +64,19 @@ public sealed class VirtualMachine : ObservableObject
     public string? LastError { get => _lastError; set => SetProperty(ref _lastError, value); }
 
     public bool HasGpuPartition => !string.IsNullOrWhiteSpace(GpuName);
+
+    /// <summary>Cle de tri "les machines actives d'abord" : l'ordre des valeurs de
+    /// VmState suit leur cycle de vie, pas l'interet qu'elles presentent pour
+    /// l'utilisateur - trier sur l'enum brut ne mettrait donc pas En cours en tete.</summary>
+    public int StateSortKey => State switch
+    {
+        VmState.Running => 0,
+        VmState.Starting => 1,
+        VmState.Stopping => 2,
+        VmState.Saved => 3,
+        VmState.Off => 4,
+        _ => 5,
+    };
     public double MemoryGb => Math.Round(MemoryMb / 1024.0, 1);
     public string DisplaySummary => Loc.Get("Vm_DisplaySummary", Cpu, MemoryGb, Resolution, RefreshRateHz);
 

@@ -1,5 +1,11 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:converters="clr-namespace:NovaVM.Gui.Converters">
+
+    <!-- Declare ici et non dans App.xaml : FilledSliderStyle s'en sert via
+         StaticResource, qui se resout a l'analyse de CE dictionnaire, avant que les
+         ressources propres de App.xaml n'existent. -->
+    <converters:SliderFillWidthConverter x:Key="SliderFillWidthConverter" />
 
     <!--
         Styles maison NovaVM (boutons pilule, cartes, navigation laterale).
@@ -96,15 +102,24 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Bg" Background="Transparent" CornerRadius="10" Padding="{TemplateBinding Padding}">
-                        <ContentPresenter />
-                    </Border>
+                    <Grid>
+                        <Border x:Name="Bg" Background="Transparent" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <!-- Barre d'accent a gauche de l'element actif : le simple
+                             changement de fond ne suffisait pas a reperer la page
+                             courante d'un coup d'oeil sur un theme sombre. -->
+                        <Border x:Name="AccentBar" Width="3" Height="20" CornerRadius="2"
+                                HorizontalAlignment="Left" VerticalAlignment="Center"
+                                Background="{StaticResource AccentBrush}" Visibility="Collapsed" />
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+                            <Setter TargetName="AccentBar" Property="Visibility" Value="Visible" />
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -147,6 +162,166 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Pastille d'icone : carre arrondi teinte contenant une icone Fluent. Sert de
+         repere visuel en tete de chaque VM et de chaque bloc de reglage. La couleur
+         de fond se surcharge au cas par cas (IconBlueBrush, IconPurpleBrush...). -->
+    <Style x:Key="IconBadgeStyle" TargetType="Border">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Background" Value="{StaticResource IconNeutralBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="SmallIconBadgeStyle" TargetType="Border" BasedOn="{StaticResource IconBadgeStyle}">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="CornerRadius" Value="9" />
+    </Style>
+
+    <!-- Carte d'un bloc de reglage, a l'interieur d'une page deja posee sur une
+         CardStyle : fond legerement plus clair et coins moins arrondis, pour se
+         distinguer de la carte parente sans creer un deuxieme cadre marque. -->
+    <Style x:Key="SettingCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+    <!-- Bouton d'icone discret (copier un chemin, trier une liste...) : pas de fond
+         au repos, pour ne pas concurrencer les vraies actions de la page. -->
+    <Style x:Key="SubtleIconButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="6" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="8"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Badge de comptage (ex. nombre de VMs a cote du titre "Machines"). -->
+    <Style x:Key="CountBadgeStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Slider a piste remplie : la portion parcourue est coloree, ce que le style
+         par defaut ne fait pas - on voyait mal ou en etait la valeur d'un coup d'oeil. -->
+    <Style x:Key="FilledSliderStyle" TargetType="Slider">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="IsSnapToTickEnabled" Value="True" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid VerticalAlignment="Center" Height="24">
+                        <Border Height="5" CornerRadius="3" VerticalAlignment="Center"
+                                Background="{StaticResource SliderTrackBrush}" />
+
+                        <!-- Portion parcourue. Calculee explicitement plutot que
+                             dessinee par le DecreaseRepeatButton du Track : celui-ci
+                             ne rend rien ici (verifie a l'ecran avec une couleur
+                             criarde), le curseur etant pourtant bien positionne. -->
+                        <Border Height="5" CornerRadius="3" VerticalAlignment="Center"
+                                HorizontalAlignment="Left" IsHitTestVisible="False"
+                                Background="{StaticResource AccentBrush}">
+                            <Border.Width>
+                                <MultiBinding Converter="{StaticResource SliderFillWidthConverter}">
+                                    <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="Minimum" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                </MultiBinding>
+                            </Border.Width>
+                        </Border>
+
+                        <!-- Les deux zones cliquables de part et d'autre du curseur
+                             restent presentes (clic = saut de valeur) mais ne
+                             dessinent rien : le rendu est assure par les deux Border
+                             ci-dessus. -->
+                        <Track x:Name="PART_Track">
+                            <Track.Resources>
+                                <Style TargetType="RepeatButton">
+                                    <Setter Property="Focusable" Value="False" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="Transparent" />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Track.Resources>
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Width="18" Height="18" Focusable="False">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse x:Name="Knob" Fill="{StaticResource AccentBrush}"
+                                                     Stroke="#0A0E12" StrokeThickness="2" />
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Knob" Property="Fill" Value="{StaticResource AccentHoverBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Valeur d'un slider, editable : on peut taper une valeur exacte au lieu de
+         viser au curseur, ce qui compte des que le pas est fin (VRAM, disque). -->
+    <Style x:Key="ValueBoxStyle" TargetType="TextBox">
+        <Setter Property="Width" Value="66" />
+        <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
 
     <!-- Remplace le style implicite TextBox de WPF-UI pour coller a notre palette. -->

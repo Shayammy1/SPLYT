@@ -24,6 +24,7 @@
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
             <converters:AppLanguageToLabelConverter x:Key="AppLanguageToLabelConverter" />
             <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
 
             <!-- Navigation ViewModel-first : chaque page de la barre laterale est un
                  ViewModel simple ; le DataTemplate associe indique a WPF quelle vue

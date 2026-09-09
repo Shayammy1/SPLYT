@@ -19,6 +19,9 @@ internal static class Strings
         ["Nav_Journal"] = "Journal",
         ["Nav_Debug"] = "Depannage",
         ["Nav_Settings"] = "Parametres",
+        ["Nav_ToggleSidebar"] = "Reduire / deplier le menu",
+        ["Shell_SearchPlaceholder"] = "Rechercher une VM...",
+        ["Shell_ClearSearch"] = "Effacer la recherche",
         ["Common_Refresh"] = "Actualiser",
         ["Common_GbUnit"] = " Go",
 
@@ -46,6 +49,7 @@ internal static class Strings
 
         // --- Journal ---
         ["Journal_Subtitle"] = "Historique des operations effectuees sur les VMs (le plus recent en premier)",
+        ["Journal_NoEntries"] = "Aucune entree pour le moment.",
 
         // --- Depannage ---
         ["Debug_Subtitle"] = "Reparations qui concernent cet ordinateur plutot qu'une VM en particulier.",
@@ -92,8 +96,13 @@ internal static class Strings
 
         // --- Machines virtuelles (liste + detail) ---
         ["VmList_Subtitle"] = "Creer, configurer et piloter vos VMs",
-        ["VmList_CreateVm"] = "+  Creer une VM",
+        ["VmList_CreateVm"] = "Creer une VM",
         ["VmList_MachinesHeader"] = "Machines",
+        ["VmList_SortTooltip"] = "Trier la liste",
+        ["VmList_SortByState"] = "En cours d'abord",
+        ["VmList_SortByName"] = "Ordre alphabetique",
+        ["VmList_NoSearchResult"] = "Aucune VM ne correspond a cette recherche.",
+        ["VmList_CopyIsoPath"] = "Copier le chemin de l'ISO",
         ["VmList_Start"] = "Demarrer",
         ["VmList_Stop"] = "Arreter",
         ["VmList_Stop_Tooltip"] = "Arret normal (equivalent a demarrer l'arret depuis le menu Demarrer de Windows).",
@@ -302,6 +311,9 @@ internal static class Strings
         ["Nav_Journal"] = "Log",
         ["Nav_Debug"] = "Troubleshooting",
         ["Nav_Settings"] = "Settings",
+        ["Nav_ToggleSidebar"] = "Collapse / expand the menu",
+        ["Shell_SearchPlaceholder"] = "Search a VM...",
+        ["Shell_ClearSearch"] = "Clear the search",
         ["Common_Refresh"] = "Refresh",
         ["Common_GbUnit"] = " GB",
 
@@ -329,6 +341,7 @@ internal static class Strings
 
         // --- Log ---
         ["Journal_Subtitle"] = "History of operations performed on VMs (most recent first)",
+        ["Journal_NoEntries"] = "No entry yet.",
 
         // --- Settings ---
         // --- Troubleshooting ---
@@ -375,8 +388,13 @@ internal static class Strings
 
         // --- Virtual machines (list + detail) ---
         ["VmList_Subtitle"] = "Create, configure and control your VMs",
-        ["VmList_CreateVm"] = "+  Create a VM",
+        ["VmList_CreateVm"] = "Create a VM",
         ["VmList_MachinesHeader"] = "Machines",
+        ["VmList_SortTooltip"] = "Sort the list",
+        ["VmList_SortByState"] = "Running first",
+        ["VmList_SortByName"] = "Alphabetical",
+        ["VmList_NoSearchResult"] = "No VM matches this search.",
+        ["VmList_CopyIsoPath"] = "Copy the ISO path",
         ["VmList_Start"] = "Start",
         ["VmList_Stop"] = "Stop",
         ["VmList_Stop_Tooltip"] = "Normal shutdown (equivalent to starting a shutdown from Windows' Start menu).",

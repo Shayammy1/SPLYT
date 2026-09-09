@@ -26,7 +26,7 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250" />
+                <ColumnDefinition Width="{Binding SidebarWidth}" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -34,20 +34,53 @@
             <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush2}" BorderThickness="0,0,1,0">
                 <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Top" Margin="20,10,20,20">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/AppIcon.png" Width="28" Height="28"
-                                   Margin="0,0,10,0" VerticalAlignment="Center" />
-                            <TextBlock Text="SPLYT" FontSize="20" FontWeight="Bold"
-                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    <Grid DockPanel.Dock="Top" Margin="16,6,10,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Orientation="Horizontal">
+                                <Image Source="pack://application:,,,/Assets/AppIcon.png" Width="28" Height="28"
+                                       Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="SPLYT" FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                            </StackPanel>
+                            <TextBlock Text="{markup:Tr App_Subtitle}" FontSize="11" Margin="0,4,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
                         </StackPanel>
-                        <TextBlock Text="{markup:Tr App_Subtitle}" FontSize="11" Margin="0,4,0,0"
-                                   Foreground="{StaticResource TextSecondaryBrush}" />
+
+                        <Button Grid.Column="1" Style="{StaticResource SubtleIconButtonStyle}"
+                                Command="{Binding ToggleSidebarCommand}"
+                                VerticalAlignment="Top" Margin="0,2,0,0"
+                                ToolTip="{markup:Tr Nav_ToggleSidebar}"
+                                Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                            <ui:SymbolIcon Symbol="PanelLeftContract24" FontSize="16" />
+                        </Button>
+                    </Grid>
+
+                    <!-- Pied de page : pastille d'etat + version -->
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                                Margin="18,10,16,16" VerticalAlignment="Center">
+                        <Ellipse Width="7" Height="7" Fill="{StaticResource SuccessBrush}"
+                                 VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding Settings.AppVersion}" FontSize="10"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
                     </StackPanel>
 
-                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding Settings.AppVersion}"
-                               Margin="20,10,20,16" FontSize="10"
-                               Foreground="{StaticResource TextMutedBrush}" />
+                    <!-- Bouton de re-deploiement, visible seulement en mode reduit -->
+                    <Button DockPanel.Dock="Bottom" Style="{StaticResource SubtleIconButtonStyle}"
+                            Command="{Binding ToggleSidebarCommand}"
+                            HorizontalAlignment="Center" Margin="0,0,0,8"
+                            ToolTip="{markup:Tr Nav_ToggleSidebar}"
+                            Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <ui:SymbolIcon Symbol="PanelLeftExpand24" FontSize="16" />
+                    </Button>
 
                     <ListBox ItemsSource="{Binding NavItems}"
                              SelectedItem="{Binding SelectedNavItem}"
@@ -55,10 +88,14 @@
                              ItemContainerStyle="{StaticResource NavListBoxItemStyle}">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:NavItem}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Icon}" FontSize="16" Width="26"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal"
+                                            ToolTip="{Binding Title}">
+                                    <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="18" Width="26"
+                                                   VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="6,0,0,0"
+                                               Visibility="{Binding DataContext.IsSidebarCollapsed,
+                                                            RelativeSource={RelativeSource AncestorType=Window},
+                                                            Converter={StaticResource InverseBoolToVisibilityConverter}}" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -66,8 +103,67 @@
                 </DockPanel>
             </Border>
 
-            <!-- Contenu de la page active -->
-            <ContentControl Grid.Column="1" Content="{Binding CurrentViewModel}" Focusable="False" />
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Bandeau de recherche : filtre la liste des VMs depuis n'importe
+                     quelle page (voir MainViewModel.GoToVmList). -->
+                <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush2}" BorderThickness="0,0,0,1"
+                        Padding="24,10">
+                    <Border Background="{StaticResource SurfaceElevatedBrush}"
+                            BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1"
+                            CornerRadius="10" Padding="12,0" Width="420" HorizontalAlignment="Left">
+                        <Grid Height="34">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Search24" FontSize="15"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"
+                                           Foreground="{StaticResource TextMutedBrush}" />
+
+                            <Grid Grid.Column="1">
+                                <TextBlock Text="{markup:Tr Shell_SearchPlaceholder}" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False"
+                                           Visibility="{Binding VmList.HasSearchText, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                <TextBox x:Name="ShellSearchBox"
+                                         Text="{Binding VmList.SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="Transparent" BorderThickness="0" Padding="0"
+                                         VerticalContentAlignment="Center"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         CaretBrush="{StaticResource AccentBrush}"
+                                         GotKeyboardFocus="ShellSearchBox_GotKeyboardFocus" />
+                            </Grid>
+
+                            <!-- La pastille du raccourci laisse place au bouton d'effacement
+                                 des qu'une recherche est en cours : le raccourci n'a plus
+                                 rien a rappeler a ce moment-la. -->
+                            <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1"
+                                    CornerRadius="5" Padding="6,2" VerticalAlignment="Center" Margin="8,0,0,0"
+                                    Visibility="{Binding VmList.HasSearchText, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                <TextBlock Text="Ctrl K" FontSize="10"
+                                           Foreground="{StaticResource TextMutedBrush}" />
+                            </Border>
+                            <Button Grid.Column="2" Style="{StaticResource SubtleIconButtonStyle}"
+                                    Command="{Binding VmList.ClearSearchCommand}" Padding="4" Margin="6,0,0,0"
+                                    ToolTip="{markup:Tr Shell_ClearSearch}"
+                                    Visibility="{Binding VmList.HasSearchText, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="13" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </Border>
+
+                <!-- Contenu de la page active -->
+                <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}" Focusable="False" />
+            </Grid>
         </Grid>
 
         <!-- Voile + boite de dialogue modale "Creer une VM" -->

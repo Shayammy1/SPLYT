@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using NovaVM.Gui.Mvvm;
 using NovaVM.Gui.Services;
 using NovaVM.Gui.Services.Localization;
+using Wpf.Ui.Controls;
 
 namespace NovaVM.Gui.ViewModels;
 
@@ -32,6 +33,7 @@ public sealed class MainViewModel : ViewModelBase
     private LanguageChoiceDialogViewModel? _languageChoiceDialog;
     private bool _isSplytSetupDialogOpen;
     private SplytSetupDialogViewModel? _splytSetupDialog;
+    private bool _isSidebarCollapsed;
     private readonly DispatcherTimer _stateRefreshTimer;
 
     public MainViewModel(NovaVmService vmService, LogService log)
@@ -68,13 +70,13 @@ public sealed class MainViewModel : ViewModelBase
 
         NavItems = new ObservableCollection<NavItem>
         {
-            new() { Title = Loc.Get("Nav_Dashboard"), Icon = "\U0001F3E0", ViewModel = Dashboard },
-            new() { Title = Loc.Get("Nav_VmList"), Icon = "\U0001F4BB", ViewModel = VmList },
-            new() { Title = Loc.Get("Nav_Gpu"), Icon = "\U0001F3AE", ViewModel = Gpu },
-            new() { Title = Loc.Get("Nav_Storage"), Icon = "\U0001F4BE", ViewModel = Storage },
-            new() { Title = Loc.Get("Nav_Journal"), Icon = "\U0001F4CB", ViewModel = Journal },
-            new() { Title = Loc.Get("Nav_Debug"), Icon = "\U0001F527", ViewModel = Debug },
-            new() { Title = Loc.Get("Nav_Settings"), Icon = "⚙", ViewModel = Settings },
+            new() { Title = Loc.Get("Nav_Dashboard"), Icon = SymbolRegular.Home24, ViewModel = Dashboard },
+            new() { Title = Loc.Get("Nav_VmList"), Icon = SymbolRegular.Desktop24, ViewModel = VmList },
+            new() { Title = Loc.Get("Nav_Gpu"), Icon = SymbolRegular.XboxController24, ViewModel = Gpu },
+            new() { Title = Loc.Get("Nav_Storage"), Icon = SymbolRegular.Database24, ViewModel = Storage },
+            new() { Title = Loc.Get("Nav_Journal"), Icon = SymbolRegular.DocumentText24, ViewModel = Journal },
+            new() { Title = Loc.Get("Nav_Debug"), Icon = SymbolRegular.Wrench24, ViewModel = Debug },
+            new() { Title = Loc.Get("Nav_Settings"), Icon = SymbolRegular.Settings24, ViewModel = Settings },
         };
 
         _currentViewModel = Dashboard;
@@ -82,6 +84,7 @@ public sealed class MainViewModel : ViewModelBase
 
         OpenCreateVmDialogCommand = new AsyncRelayCommand(OpenCreateVmDialogAsync);
         CloseCreateVmDialogCommand = new RelayCommand(() => IsCreateDialogOpen = false);
+        ToggleSidebarCommand = new RelayCommand(() => IsSidebarCollapsed = !IsSidebarCollapsed);
 
         // Rafraichissement periodique de l'etat des VMs : un arret propre passe par
         // "Arret en cours" pendant plusieurs secondes, et une VM peut aussi etre
@@ -202,6 +205,32 @@ public sealed class MainViewModel : ViewModelBase
 
     public AsyncRelayCommand OpenCreateVmDialogCommand { get; }
     public RelayCommand CloseCreateVmDialogCommand { get; }
+    public RelayCommand ToggleSidebarCommand { get; }
+
+    /// <summary>Barre laterale reduite aux icones : la liste des VMs et son panneau
+    /// de details tiennent mal cote a cote sur un portable avec 250 px de navigation
+    /// en permanence.</summary>
+    public bool IsSidebarCollapsed
+    {
+        get => _isSidebarCollapsed;
+        set
+        {
+            if (SetProperty(ref _isSidebarCollapsed, value)) OnPropertyChanged(nameof(SidebarWidth));
+        }
+    }
+
+    /// <summary>Largeur reelle de la colonne de navigation. Une ColumnDefinition ne
+    /// se pilote pas par declencheur de style, d'ou cette valeur calculee.</summary>
+    public double SidebarWidth => IsSidebarCollapsed ? 64 : 250;
+
+    /// <summary>La recherche du bandeau superieur filtre la liste des VMs : y taper
+    /// depuis l'accueil doit donc aussi amener sur la page qui montre le resultat,
+    /// sinon on tape dans le vide.</summary>
+    public void GoToVmList()
+    {
+        var vmListItem = NavItems.FirstOrDefault(i => ReferenceEquals(i.ViewModel, VmList));
+        if (vmListItem is not null) SelectedNavItem = vmListItem;
+    }
 
     private async Task OpenCreateVmDialogAsync()
     {

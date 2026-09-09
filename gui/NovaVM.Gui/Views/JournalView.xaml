@@ -6,6 +6,7 @@
              xmlns:vm="clr-namespace:NovaVM.Gui.ViewModels"
              xmlns:models="clr-namespace:NovaVM.Gui.Models"
              xmlns:markup="clr-namespace:NovaVM.Gui.Markup"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:JournalViewModel}">
     <Grid Margin="32">
@@ -15,13 +16,30 @@
         </Grid.RowDefinitions>
 
         <StackPanel Margin="0,0,0,24">
-            <TextBlock Text="{markup:Tr Nav_Journal}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{markup:Tr Nav_Journal}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                <Border Style="{StaticResource CountBadgeStyle}" Margin="12,4,0,0">
+                    <TextBlock Text="{Binding Entries.Count}" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </Border>
+            </StackPanel>
             <TextBlock Text="{markup:Tr Journal_Subtitle}"
                        FontSize="13" Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" />
         </StackPanel>
 
         <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Visibility="{Binding Entries.Count, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}">
+                    <Border Style="{StaticResource IconBadgeStyle}" Width="56" Height="56" CornerRadius="16"
+                            HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <ui:SymbolIcon Symbol="DocumentText24" FontSize="26"
+                                       Foreground="{StaticResource TextMutedBrush}" />
+                    </Border>
+                    <TextBlock Text="{markup:Tr Journal_NoEntries}" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextMutedBrush}" />
+                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding Entries}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type models:LogEntry}">
@@ -32,27 +50,34 @@
                                         <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Icon}" FontWeight="Bold" Margin="0,0,14,0" VerticalAlignment="Top">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Level}" Value="Success">
-                                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Level}" Value="Warning">
-                                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Level}" Value="Error">
-                                                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <!-- Pastille coloree par niveau : dans une longue liste, la
+                                         couleur repere les erreurs bien avant la lecture. -->
+                                    <Border Margin="0,0,14,0" VerticalAlignment="Top"
+                                            Style="{StaticResource SmallIconBadgeStyle}">
+                                        <TextBlock Text="{Binding Icon}" FontWeight="Bold"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Level}" Value="Success">
+                                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                                            <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Level}" Value="Error">
+                                                            <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
                                     <TextBlock Grid.Column="1" Text="{Binding Timestamp, StringFormat='HH:mm:ss'}"
-                                               FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Top" />
-                                    <StackPanel Grid.Column="2">
+                                               FontSize="11" Margin="0,9,0,0"
+                                               Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Top" />
+                                    <StackPanel Grid.Column="2" Margin="0,6,0,0">
                                         <TextBlock Text="{Binding Message}" FontSize="13"
                                                    Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding Details}" FontSize="11" Margin="0,4,0,0"
@@ -64,7 +89,8 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </ScrollViewer>
+                </ScrollViewer>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

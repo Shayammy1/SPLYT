@@ -47,4 +47,21 @@
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
     <SolidColorBrush x:Key="DangerHoverBrush" Color="{StaticResource DangerHoverColor}" />
 
+    <!-- Pastilles d'icone : un fond teinte par famille de reglage, pour que l'oeil
+         retrouve une section sans lire son titre (processeur, memoire, GPU...).
+         Volontairement tres desaturees : ce sont des reperes, pas des alertes. -->
+    <SolidColorBrush x:Key="IconAccentBrush" Color="#1B3B39" />
+    <SolidColorBrush x:Key="IconBlueBrush" Color="#1B2C4A" />
+    <SolidColorBrush x:Key="IconPurpleBrush" Color="#2B2450" />
+    <SolidColorBrush x:Key="IconNeutralBrush" Color="{StaticResource SurfaceElevatedColor}" />
+
+    <!-- Piste non parcourue d'un slider. Volontairement plus claire que
+         SurfaceElevated : les sliders vivent DANS des cartes de cette couleur, ou
+         une piste de la meme teinte disparaissait purement et simplement. -->
+    <SolidColorBrush x:Key="SliderTrackBrush" Color="#3A4152" />
+
+    <SolidColorBrush x:Key="IconAccentForeground" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="IconBlueForeground" Color="#6AA8FF" />
+    <SolidColorBrush x:Key="IconPurpleForeground" Color="#A78BFA" />
+
 </ResourceDictionary>
