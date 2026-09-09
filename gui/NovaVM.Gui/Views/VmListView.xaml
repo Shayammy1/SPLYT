@@ -1,4 +1,4 @@
-<UserControl x:Class="NovaVM.Gui.Views.VmListView"
+﻿<UserControl x:Class="NovaVM.Gui.Views.VmListView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -81,46 +81,45 @@
             <Border Grid.Column="2" Style="{StaticResource CardStyle}"
                     Visibility="{Binding SelectedVm, Converter={StaticResource NullToVisibilityConverter}}">
                 <DockPanel>
-                    <!-- En-tete : nom, statut, actions -->
-                    <Grid DockPanel.Dock="Top" Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding SelectedVm.Name}" FontSize="20" FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}" />
-                                <Border CornerRadius="10" Padding="10,3" Margin="12,0,0,0" VerticalAlignment="Center"
-                                        Background="{Binding SelectedVm.State, Converter={StaticResource VmStateToBrushConverter}}">
-                                    <TextBlock Text="{Binding SelectedVm.StateDisplay}" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="#0A0E12" />
-                                </Border>
-                            </StackPanel>
-                            <!-- Coupe proprement plutot que net : la rangee de boutons a
-                                 grandi et peut desormais empieter sur ce resume. -->
-                            <TextBlock Text="{Binding SelectedVm.DisplaySummary}" FontSize="12" Margin="0,6,8,0"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTip="{Binding SelectedVm.DisplaySummary}"
-                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                    <!-- En-tete : nom, statut, actions.
+                         Identite de la VM sur une ligne, actions sur la suivante. Tout
+                         tenir sur une seule rangee marchait a trois boutons ; avec
+                         "Lancer avec Moonlight" en plus, les boutons rognaient le resume
+                         de la VM jusqu'a le tronquer. Les separer supprime la concurrence
+                         pour la largeur au lieu de la compenser. -->
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding SelectedVm.Name}" FontSize="22" FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <Border CornerRadius="10" Padding="10,3" Margin="12,0,0,0" VerticalAlignment="Center"
+                                    Background="{Binding SelectedVm.State, Converter={StaticResource VmStateToBrushConverter}}">
+                                <TextBlock Text="{Binding SelectedVm.StateDisplay}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="#0A0E12" />
+                            </Border>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <!-- Lancement "deuxieme joueur" : demarre la VM au besoin puis
-                                 ouvre Moonlight deja connecte. N'apparait qu'une fois Windows
-                                 installe, sinon il n'y a rien a diffuser. -->
+                        <TextBlock Text="{Binding SelectedVm.DisplaySummary}" FontSize="12" Margin="0,6,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+
+                        <!-- Une seule action mise en avant. "Lancer avec Moonlight" et
+                             "Demarrer" partageaient la couleur d'accent, donc la meme
+                             importance apparente, alors que le premier est l'action
+                             principale une fois la VM configuree - et qu'il fait de
+                             toute facon demarrer la VM au passage. -->
+                        <WrapPanel Orientation="Horizontal" Margin="0,16,0,0">
                             <Button Content="{markup:Tr VmList_LaunchMoonlight}" Style="{StaticResource AccentButtonStyle}"
-                                    Command="{Binding LaunchWithMoonlightCommand}" Margin="0,0,8,0"
+                                    Command="{Binding LaunchWithMoonlightCommand}" Margin="0,0,8,8"
                                     ToolTip="{markup:Tr VmList_LaunchMoonlight_Tooltip}"
                                     Visibility="{Binding CanRunSplytSetup, Converter={StaticResource BoolToVisibilityConverter}}" />
-                            <Button Content="{markup:Tr VmList_Start}" Style="{StaticResource AccentButtonStyle}"
-                                    Command="{Binding StartCommand}" Margin="0,0,8,0" />
+                            <Button Content="{markup:Tr VmList_Start}" Style="{StaticResource GhostButtonStyle}"
+                                    Command="{Binding StartCommand}" Margin="0,0,8,8" />
                             <Button Content="{markup:Tr VmList_Stop}" Style="{StaticResource GhostButtonStyle}"
-                                    Command="{Binding StopCommand}" Margin="0,0,8,0"
+                                    Command="{Binding StopCommand}" Margin="0,0,8,8"
                                     ToolTip="{markup:Tr VmList_Stop_Tooltip}" />
                             <Button Content="{markup:Tr Common_Delete}" Style="{StaticResource DangerButtonStyle}"
-                                    Command="{Binding DeleteCommand}" />
-                        </StackPanel>
-                    </Grid>
+                                    Command="{Binding DeleteCommand}" Margin="0,0,0,8" />
+                        </WrapPanel>
+                    </StackPanel>
 
                     <!-- Progression / resultat du lancement Moonlight -->
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12"
@@ -160,7 +159,7 @@
                                 ItemContainerStyle="{StaticResource PillTabItemStyle}">
                         <TabItem Header="{markup:Tr VmList_Tab_Resources}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
+                            <StackPanel Margin="0,16,16,16" MaxWidth="620" HorizontalAlignment="Left">
                                 <!-- Configuration en un clic. La carte reste TOUJOURS visible :
                                      tant que Windows n'est pas installe dans la VM le bouton est
                                      simplement desactive, avec l'explication. Le faire disparaitre
@@ -261,7 +260,7 @@
 
                         <TabItem Header="GPU-P" IsSelected="{Binding IsGpuTabSelected, Mode=TwoWay}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="0,16,0,16" MaxWidth="420" HorizontalAlignment="Left">
+                            <StackPanel Margin="0,16,16,16" MaxWidth="620" HorizontalAlignment="Left">
                                 <TextBlock Text="{markup:Tr VmList_Gpu_Partitioned}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
                                 <ComboBox ItemsSource="{Binding GpuDropdownOptions}" SelectedItem="{Binding EditGpuSelection}"
                                           Margin="0,6,0,18" />
