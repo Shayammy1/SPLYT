@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Configure le streaming de bout en bout pour la meilleure qualite possible sur un
     lien LOCAL, et apparie Sunshine (dans la VM) avec Moonlight (sur l'hote) SANS que
@@ -37,6 +37,58 @@ param(
 )
 
 Import-Module (Join-Path $PSScriptRoot "NovaVm.Common.psm1") -Force
+
+# Appelle l'API web de Sunshine via curl.exe, et NON via Invoke-RestMethod.
+#
+# Raison verifiee empiriquement (trace curl -v a l'appui) : Sunshine demande une
+# RENEGOCIATION TLS en cours de connexion. curl la gere ; la pile HTTP du .NET
+# Framework, sur laquelle repose Invoke-RestMethod en PowerShell 5.1, ne sait pas
+# la gerer et coupe la connexion avec "La connexion sous-jacente a ete fermee : une
+# erreur inattendue s'est produite lors de l'envoi". Ce message ressemble a s'y
+# meprendre a un pare-feu, a un service arrete ou a une mauvaise version de TLS -
+# ce n'est aucun des trois, et forcer TLS 1.2 ou 1.3 n'y change rien (teste).
+# curl.exe est livre avec Windows depuis la version 1803, aucune dependance ajoutee.
+#
+# Les identifiants passent par un fichier de configuration lu sur l'ENTREE STANDARD
+# (-K -), jamais en argument : un argument de processus est lisible par n'importe
+# quel autre processus de la machine. Le mot de passe est tire par SPLYT dans
+# [0-9A-Za-z] uniquement, donc sans caractere a echapper dans ce format.
+function Invoke-NovaSunshineApi {
+    param(
+        [Parameter(Mandatory)][string]$Url,
+        [Parameter(Mandatory)][string]$User,
+        [Parameter(Mandatory)][string]$Password,
+        [string]$Method = "GET",
+        [string]$JsonBody
+    )
+
+    $arguments = @("-K", "-", "-s", "-o", "-", "-w", "|NOVAHTTP=%{http_code}", "--max-time", "20", $Url)
+    if ($Method -ne "GET") { $arguments += @("-X", $Method) }
+    if ($JsonBody) { $arguments += @("-H", "Content-Type: application/json", "-d", $JsonBody) }
+
+    # "insecure" : Sunshine se presente avec un certificat auto-signe, ce qui est
+    # attendu, et la connexion ne quitte pas la machine.
+    $config = "user = `"${User}:${Password}`"`ninsecure`n"
+
+    try {
+        $raw = ($config | & curl.exe @arguments 2>&1 | Out-String)
+    } catch {
+        return [pscustomobject]@{ HttpCode = 0; Body = $null; Error = $_.Exception.Message }
+    }
+
+    $marker = $raw.LastIndexOf("|NOVAHTTP=")
+    if ($marker -lt 0) {
+        return [pscustomobject]@{ HttpCode = 0; Body = $raw; Error = "Reponse illisible de curl : $raw" }
+    }
+
+    $code = 0
+    [void][int]::TryParse($raw.Substring($marker + 10).Trim(), [ref]$code)
+    return [pscustomobject]@{
+        HttpCode = $code
+        Body     = $raw.Substring(0, $marker)
+        Error    = if ($code -ge 200 -and $code -lt 300) { $null } else { "code HTTP $code" }
+    }
+}
 
 Invoke-NovaAction {
     $username = [Console]::In.ReadLine()
@@ -139,119 +191,87 @@ Invoke-NovaAction {
     }
 
     $baseUrl = "https://${vmIp}:47990"
-    $securePair = ConvertTo-SecureString -String $sunshinePassword -AsPlainText -Force
-    $apiCredential = New-Object System.Management.Automation.PSCredential($SunshineUser, $securePair)
 
-    # Sunshine se presente avec un certificat auto-signe : c'est attendu, et le lien
-    # ne quitte pas la machine. PowerShell 5.1 n'a pas -SkipCertificateCheck, d'ou ce
-    # rappel de validation, retabli en fin de script.
-    $previousCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
-    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-
-    # Windows PowerShell 5.1 negocie encore SSL3/TLS 1.0 par defaut, que Sunshine
-    # refuse : la connexion est alors coupee net avec "La connexion sous-jacente a
-    # ete fermee", message qui ressemble a s'y meprendre a un pare-feu ou a un
-    # service arrete. Rien a voir - il faut simplement lui imposer TLS 1.2.
-    $previousProtocol = [System.Net.ServicePointManager]::SecurityProtocol
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-    try {
-        # Deux tests distincts, et surtout PAS un seul : /api/configLocale ne demande
-        # aucune authentification (voir la documentation de l'API), il repond donc des
-        # que Sunshine ecoute. Sonder directement un endpoint authentifie confondait
-        # deux pannes tres differentes - "Sunshine n'est pas demarre" et "mes
-        # identifiants sont refuses" - en un seul "n'a pas repondu" inexploitable.
-        Write-NovaProgress "Attente de l'interface de Sunshine"
-        $listening = $false
-        $lastError = $null
-        for ($attempt = 0; $attempt -lt 30 -and -not $listening; $attempt++) {
-            try {
-                Invoke-RestMethod -Uri "$baseUrl/api/configLocale" -TimeoutSec 5 -ErrorAction Stop | Out-Null
-                $listening = $true
-            } catch {
-                $lastError = $_.Exception.Message
-                Start-Sleep -Seconds 2
-            }
-        }
-        if (-not $listening) {
-            throw "Sunshine n'ecoute pas sur $baseUrl (derniere erreur : $lastError). Verifiez qu'il est bien demarre dans la VM, et que le pare-feu de la VM autorise le port 47990."
-        }
-
-        Write-NovaProgress "Verification des identifiants de l'interface Sunshine"
-        try {
-            Invoke-RestMethod -Uri "$baseUrl/api/config" -Credential $apiCredential `
-                -TimeoutSec 10 -ErrorAction Stop | Out-Null
-        } catch {
-            throw "Sunshine repond sur $baseUrl mais refuse les identifiants definis par SPLYT ($($_.Exception.Message)). L'appariement automatique est impossible ; appariez manuellement depuis cette adresse."
-        }
-
-        Write-NovaProgress "Appariement de Moonlight avec Sunshine"
-        $pin = "{0:D4}" -f (Get-Random -Minimum 0 -Maximum 10000)
-
-        # Moonlight reste en attente pendant l'echange : on le lance sans bloquer,
-        # puis on valide sa demande cote Sunshine.
-        $pairProcess = Start-Process -FilePath $moonlightPath -ArgumentList "pair", $vmIp, "--pin", $pin `
-            -PassThru -WindowStyle Hidden
-
-        $paired = $false
-        $pairError = $null
-        for ($attempt = 0; $attempt -lt 30 -and -not $paired; $attempt++) {
+    # Deux tests distincts, et surtout PAS un seul : /api/configLocale ne demande
+    # aucune authentification (voir la documentation de l'API), il repond donc des
+    # que Sunshine ecoute. Sonder directement un endpoint authentifie confondait
+    # deux pannes tres differentes - "Sunshine n'est pas demarre" et "mes
+    # identifiants sont refuses" - en un seul "n'a pas repondu" inexploitable.
+    Write-NovaProgress "Attente de l'interface de Sunshine"
+    $listening = $false
+    $lastError = $null
+    for ($attempt = 0; $attempt -lt 30 -and -not $listening; $attempt++) {
+        $probe = Invoke-NovaSunshineApi -Url "$baseUrl/api/configLocale" -User $SunshineUser -Password $sunshinePassword
+        if ($probe.HttpCode -eq 200) {
+            $listening = $true
+        } else {
+            $lastError = $probe.Error
             Start-Sleep -Seconds 2
-            try {
-                $pending = Invoke-RestMethod -Uri "$baseUrl/api/pin" -Credential $apiCredential `
-                    -TimeoutSec 5 -ErrorAction Stop
-            } catch {
-                continue
-            }
-
-            # La forme exacte de la reponse a change selon les versions de Sunshine :
-            # on cherche donc un identifiant d'appariement de 32 caracteres hexa ou
-            # qu'il se trouve, plutot que de supposer un nom de champ precis.
-            $pairingId = $null
-            foreach ($candidate in @($pending, $pending.pairings, $pending.requests, $pending.value)) {
-                if (-not $candidate) { continue }
-                foreach ($entry in @($candidate)) {
-                    foreach ($property in $entry.PSObject.Properties) {
-                        if ($property.Value -is [string] -and $property.Value -match '^[0-9a-fA-F]{32}$') {
-                            $pairingId = $property.Value
-                            break
-                        }
-                    }
-                    if ($pairingId) { break }
-                }
-                if ($pairingId) { break }
-            }
-            if (-not $pairingId) { continue }
-
-            try {
-                $body = @{ pairing_id = $pairingId; pin = $pin; name = "SPLYT" } | ConvertTo-Json -Compress
-                Invoke-RestMethod -Uri "$baseUrl/api/pin" -Method Post -Credential $apiCredential `
-                    -ContentType "application/json" -Body $body -TimeoutSec 10 -ErrorAction Stop | Out-Null
-                $paired = $true
-            } catch {
-                $pairError = $_.Exception.Message
-            }
         }
-
-        if (-not $paired -and -not $pairProcess.HasExited) {
-            try { $pairProcess.Kill() } catch { }
-        }
-
-        $result = [ordered]@{
-            vmIp            = $vmIp
-            sunshineWebUrl  = $baseUrl
-            configPath      = $guestOutcome.configPath
-            keysApplied     = $guestOutcome.keysApplied
-            paired          = $paired
-            pairError       = $pairError
-            message         = if ($paired) {
-                "Sunshine configure (codecs HEVC/AV1 autorises) et apparie automatiquement avec Moonlight : plus aucun code PIN a saisir. Utilisez 'Lancer avec Moonlight' pour demarrer une session."
-            } else {
-                "Sunshine est configure, mais l'appariement automatique n'a pas abouti$(if ($pairError) { " ($pairError)" }). Vous pouvez apparier manuellement depuis $baseUrl (identifiant : $SunshineUser)."
-            }
-        }
-        Write-NovaResult -Success $true -DataJson ([pscustomobject]$result | ConvertTo-Json -Compress)
-    } finally {
-        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
-        [System.Net.ServicePointManager]::SecurityProtocol = $previousProtocol
     }
+    if (-not $listening) {
+        throw "Sunshine n'ecoute pas sur $baseUrl (derniere erreur : $lastError). Verifiez qu'il est bien demarre dans la VM, et que le pare-feu de la VM autorise le port 47990."
+    }
+
+    Write-NovaProgress "Verification des identifiants de l'interface Sunshine"
+    $authProbe = Invoke-NovaSunshineApi -Url "$baseUrl/api/config" -User $SunshineUser -Password $sunshinePassword
+    if ($authProbe.HttpCode -ne 200) {
+        throw "Sunshine repond sur $baseUrl mais refuse les identifiants definis par SPLYT (code $($authProbe.HttpCode)). L'appariement automatique est impossible ; appariez manuellement depuis cette adresse."
+    }
+
+    Write-NovaProgress "Appariement de Moonlight avec Sunshine"
+    $pin = "{0:D4}" -f (Get-Random -Minimum 0 -Maximum 10000)
+
+    # Moonlight reste en attente pendant l'echange : on le lance sans bloquer,
+    # puis on valide sa demande cote Sunshine.
+    $pairProcess = Start-Process -FilePath $moonlightPath -ArgumentList "pair", $vmIp, "--pin", $pin `
+        -PassThru -WindowStyle Hidden
+
+    $paired = $false
+    $pairError = $null
+    for ($attempt = 0; $attempt -lt 30 -and -not $paired; $attempt++) {
+        Start-Sleep -Seconds 2
+        $pendingResponse = Invoke-NovaSunshineApi -Url "$baseUrl/api/pin" -User $SunshineUser -Password $sunshinePassword
+        if ($pendingResponse.HttpCode -ne 200 -or -not $pendingResponse.Body) {
+            $pairError = $pendingResponse.Error
+            continue
+        }
+
+        # L'identifiant d'appariement fait exactement 32 caracteres hexadecimaux
+        # (verifie dans le source de Sunshine, qui le valide ainsi). On le cherche
+        # tel quel dans la reponse brute plutot que de supposer un nom de champ :
+        # la forme de cette reponse a change selon les versions.
+        $pairingId = $null
+        $match = [regex]::Match($pendingResponse.Body, '\b[0-9a-fA-F]{32}\b')
+        if ($match.Success) { $pairingId = $match.Value }
+        if (-not $pairingId) { continue }
+
+        $body = @{ pairing_id = $pairingId; pin = $pin; name = "SPLYT" } | ConvertTo-Json -Compress
+        $postResponse = Invoke-NovaSunshineApi -Url "$baseUrl/api/pin" -User $SunshineUser `
+            -Password $sunshinePassword -Method "POST" -JsonBody $body
+        if ($postResponse.HttpCode -ge 200 -and $postResponse.HttpCode -lt 300) {
+            $paired = $true
+        } else {
+            $pairError = "$($postResponse.Error) - $($postResponse.Body)"
+        }
+    }
+
+    if (-not $paired -and -not $pairProcess.HasExited) {
+        try { $pairProcess.Kill() } catch { }
+    }
+
+    $result = [ordered]@{
+        vmIp            = $vmIp
+        sunshineWebUrl  = $baseUrl
+        configPath      = $guestOutcome.configPath
+        keysApplied     = $guestOutcome.keysApplied
+        paired          = $paired
+        pairError       = $pairError
+        message         = if ($paired) {
+            "Sunshine configure (codecs HEVC/AV1 autorises) et apparie automatiquement avec Moonlight : plus aucun code PIN a saisir. Utilisez 'Lancer avec Moonlight' pour demarrer une session."
+        } else {
+            "Sunshine est configure, mais l'appariement automatique n'a pas abouti$(if ($pairError) { " ($pairError)" }). Vous pouvez apparier manuellement depuis $baseUrl (identifiant : $SunshineUser)."
+        }
+    }
+    Write-NovaResult -Success $true -DataJson ([pscustomobject]$result | ConvertTo-Json -Compress)
 }
