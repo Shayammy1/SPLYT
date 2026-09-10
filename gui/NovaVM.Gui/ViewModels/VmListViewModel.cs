@@ -79,6 +79,9 @@ public sealed class VmListViewModel : ViewModelBase
         RunSplytSetupCommand = new RelayCommand(
             () => { if (SelectedVm is not null) SplytSetupSuggested?.Invoke(this, SelectedVm); },
             () => CanRunSplytSetup);
+        OpenConsoleCommand = new RelayCommand(
+            () => { if (SelectedVm is not null) ConsoleRequested?.Invoke(this, SelectedVm); },
+            () => SelectedVm is { State: VmState.Running });
         BrowseNvidiaDriverCommand = new RelayCommand(BrowseNvidiaDriver);
         PatchNvidiaGpuDriverCommand = new AsyncRelayCommand(PatchNvidiaGpuDriverAsync,
             () => SelectedVm is { State: VmState.Off } && !string.IsNullOrWhiteSpace(EditGpuName) && !string.IsNullOrWhiteSpace(NvidiaDriverInstallerPath));
@@ -532,6 +535,7 @@ public sealed class VmListViewModel : ViewModelBase
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => { MoonlightStatus = step; });
     }
 
+    public RelayCommand OpenConsoleCommand { get; }
     public RelayCommand BrowseNvidiaDriverCommand { get; }
     public AsyncRelayCommand PatchNvidiaGpuDriverCommand { get; }
 
@@ -553,6 +557,11 @@ public sealed class VmListViewModel : ViewModelBase
     /// un clic. Emis aussi quand l'utilisateur clique lui-meme sur le bouton
     /// "SPLYT" de l'onglet Ressources.</summary>
     public event EventHandler<VirtualMachine>? SplytSetupSuggested;
+
+    /// <summary>Demande d'ouverture de la console de la VM dans sa propre fenetre
+    /// (voir VmConsoleWindow). La coquille s'en charge : ouvrir une fenetre est
+    /// une affaire de vue, pas de ViewModel.</summary>
+    public event EventHandler<VirtualMachine>? ConsoleRequested;
 
     /// <summary>Appele par MainViewModel une fois la boite de dialogue d'identifiants
     /// terminee avec succes, pour afficher le resultat (etapes restantes : PIN

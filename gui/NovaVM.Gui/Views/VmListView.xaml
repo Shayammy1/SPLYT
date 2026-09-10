@@ -200,6 +200,18 @@
                                     <TextBlock Text="{markup:Tr VmList_Start}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
+                            <!-- Ouvre la console dans une fenetre a part plutot que
+                                 dans un panneau : vmconnect ne met pas l'image a
+                                 l'echelle, un cadre plus petit que la resolution de
+                                 la VM la rognerait au lieu de la reduire. -->
+                            <Button Style="{StaticResource GhostButtonStyle}"
+                                    Command="{Binding OpenConsoleCommand}" Margin="0,0,8,8"
+                                    ToolTip="{markup:Tr VmList_Console_Tooltip}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Desktop24" FontSize="14" Margin="0,0,8,0" />
+                                    <TextBlock Text="{markup:Tr VmList_Tab_Console}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                             <Button Style="{StaticResource GhostButtonStyle}"
                                     Command="{Binding StopCommand}" Margin="0,0,8,8"
                                     ToolTip="{markup:Tr VmList_Stop_Tooltip}">
@@ -703,43 +715,6 @@
                             </ScrollViewer>
                         </TabItem>
 
-                        <!-- Console de la VM, affichee DANS SPLYT plutot que dans la
-                             fenetre vmconnect flottante. Voir VmConsoleHost : on
-                             emprunte la fenetre de vmconnect (lui seul sait
-                             s'authentifier aupres du service Hyper-V) et on la
-                             dimensionne sur sa zone video mesuree, pour que son
-                             chrome et son fond gris tombent hors du cadre. -->
-                        <TabItem>
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Desktop24" FontSize="14" Margin="0,0,7,0" />
-                                    <TextBlock Text="{markup:Tr VmList_Tab_Console}" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-
-                            <Border Style="{StaticResource SettingCardStyle}" Padding="1" Margin="0,16,0,0">
-                                <Grid Background="{StaticResource BackgroundBrush}">
-                                    <!-- Machine eteinte : on n'ouvre pas de console
-                                         (vmconnect afficherait son propre ecran
-                                         "ordinateur virtuel eteint", hors charte). -->
-                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24"
-                                                Visibility="{Binding SelectedVm.IsRunning, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                                        <Border Style="{StaticResource IconBadgeStyle}" Width="56" Height="56" CornerRadius="16"
-                                                HorizontalAlignment="Center" Margin="0,0,0,14">
-                                            <ui:SymbolIcon Symbol="Desktop24" FontSize="26"
-                                                           Foreground="{StaticResource TextMutedBrush}" />
-                                        </Border>
-                                        <TextBlock Text="{markup:Tr VmList_Console_NotRunning}" HorizontalAlignment="Center"
-                                                   TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360"
-                                                   Foreground="{StaticResource TextMutedBrush}" />
-                                    </StackPanel>
-
-                                    <controls:VmConsoleHost VmName="{Binding SelectedVm.Name}"
-                                                            IsConsoleEnabled="{Binding SelectedVm.IsRunning}"
-                                                            Visibility="{Binding SelectedVm.IsRunning, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                </Grid>
-                            </Border>
-                        </TabItem>
                     </TabControl>
                 </DockPanel>
             </Border>

@@ -95,6 +95,17 @@ public sealed class VmConsoleHost : HwndHost
     /// consomme comme raccourcis de l'application.</summary>
     protected override bool TranslateAcceleratorCore(ref MSG msg, System.Windows.Input.ModifierKeys modifiers) => false;
 
+    /// <summary>Envoie Ctrl+Alt+Fin a la console, que vmconnect traduit en
+    /// Ctrl+Alt+Suppr pour la VM. Windows reserve le vrai Ctrl+Alt+Suppr et
+    /// aucune application ne peut le simuler, d'ou ce detour - c'est aussi ce que
+    /// propose le menu Action de vmconnect.</summary>
+    public void SendCtrlAltDelete()
+    {
+        if (_console == IntPtr.Zero) return;
+        FocusConsole();
+        Native.SendCtrlAltEnd();
+    }
+
     protected override HandleRef BuildWindowCore(HandleRef hwndParent)
     {
         // Fenetre conteneur peinte au fond SPLYT : c'est elle qu'on voit autour de
@@ -122,13 +133,29 @@ public sealed class VmConsoleHost : HwndHost
         }
     }
 
-    // Pas de MeasureOverride reclamant la taille de la video : un HwndHost n'est
-    // PAS rogne par la mise en page WPF (probleme d'"airspace" - une fenetre
-    // native se dessine par-dessus, sans tenir compte des bords de la carte qui
-    // la contient). Demander plus que l'espace reellement disponible faisait donc
-    // deborder la console sur les onglets et hors de la carte. On occupe donc
-    // exactement l'espace offert, et c'est LayoutConsole qui centre la video
-    // dedans - le pourtour laisse voir le fond SPLYT du conteneur.
+    /// <summary>Le conteneur prend exactement la taille de la video - jamais plus
+    /// que l'espace offert. C'est ce qui fait tomber TOUT le chrome de vmconnect
+    /// (menu et barre d'outils au-dessus, barre d'etat en dessous) hors du cadre
+    /// visible : un HWND enfant ne peint jamais hors du rectangle client de son
+    /// parent. Le centrage est laisse a WPF, et le pourtour laisse voir le fond
+    /// SPLYT.
+    ///
+    /// Le plafonnement par availableSize est essentiel : un HwndHost n'est pas
+    /// rogne par la mise en page WPF ("airspace"), donc reclamer plus que la place
+    /// disponible ferait deborder la console par-dessus le reste de l'interface.</summary>
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        if (_videoSize.Width <= 0 || _videoSize.Height <= 0) return base.MeasureOverride(availableSize);
+
+        var width = double.IsInfinity(availableSize.Width)
+            ? _videoSize.Width
+            : Math.Min(_videoSize.Width, availableSize.Width);
+        var height = double.IsInfinity(availableSize.Height)
+            ? _videoSize.Height
+            : Math.Min(_videoSize.Height, availableSize.Height);
+
+        return new Size(width, height);
+    }
 
     private void Restart()
     {
@@ -261,16 +288,17 @@ public sealed class VmConsoleHost : HwndHost
 
         NotifyVideoSize(videoW, videoH);
 
-        // La video est centree si elle est plus petite que le conteneur, et rognee
-        // (jamais deformee - vmconnect ne sait pas mettre a l'echelle) si elle est
-        // plus grande.
-        var x = Math.Max(0, (containerW - videoW) / 2);
-        var y = Math.Max(0, (containerH - videoH) / 2);
-
-        // La fenetre garde sa hauteur "confortable" pour que vmconnect ne
-        // recalcule pas sa mise en page : on se contente de la positionner pour que
-        // ce qu'on ne veut pas voir tombe hors du conteneur.
-        Native.SetWindowPos(_console, x - offsetX, y - offsetY,
+        // La video est calee sur l'origine du conteneur, qui fait deja exactement
+        // sa taille (voir MeasureOverride) : tout le chrome de vmconnect - menu et
+        // barre d'outils au-dessus, barre d'etat en dessous - se retrouve hors du
+        // rectangle client du conteneur, donc invisible. Le centrage a l'ecran est
+        // l'affaire de WPF, pas la notre : le faire ici ramenait la barre d'etat
+        // dans le cadre des que le conteneur etait plus grand que la video (vu en
+        // plein ecran).
+        //
+        // La hauteur demandee reste "confortable" pour que vmconnect ne recalcule
+        // pas sa mise en page et ne reduise pas la video.
+        Native.SetWindowPos(_console, -offsetX, -offsetY,
             offsetX + videoW + offsetX, offsetY + videoH + BottomChromeAllowance);
     }
 
@@ -279,12 +307,19 @@ public sealed class VmConsoleHost : HwndHost
     /// et reduit la video), mais tombe hors du conteneur.</summary>
     private const int BottomChromeAllowance = 48;
 
+    /// <summary>Taille reelle de la zone video de la VM, mesuree une fois la
+    /// connexion etablie. La fenetre de console s'en sert pour se dimensionner
+    /// dessus : vmconnect ne mettant pas l'image a l'echelle, une fenetre plus
+    /// petite ne reduit pas l'image, elle la ROGNE.</summary>
+    public event EventHandler<Size>? VideoSizeChanged;
+
     private void NotifyVideoSize(int width, int height)
     {
         if (Math.Abs(_videoSize.Width - width) < 1 && Math.Abs(_videoSize.Height - height) < 1) return;
 
         _videoSize = new Size(width, height);
         InvalidateMeasure();
+        VideoSizeChanged?.Invoke(this, _videoSize);
     }
 
     /// <summary>Valide automatiquement les boites que vmconnect ouvre a cote de sa
@@ -321,6 +356,9 @@ public sealed class VmConsoleHost : HwndHost
         public const int SW_MAXIMIZE = 3;
 
         private const byte VkReturn = 0x0D;
+        private const byte VkControl = 0x11;
+        private const byte VkMenu = 0x12; // Alt
+        private const byte VkEnd = 0x23;
         private const uint KeyEventFKeyUp = 0x0002;
 
         // Couleur de fond du conteneur = BackgroundColor de Themes/Colors.xaml
@@ -487,6 +525,18 @@ public sealed class VmConsoleHost : HwndHost
 
             var ex = (long)GetWindowLongPtr(hWnd, GwlExStyle);
             if ((ex & WsExAppWindow) != 0) SetWindowLongPtr(hWnd, GwlExStyle, (IntPtr)(ex & ~WsExAppWindow));
+        }
+
+        /// <summary>Combinaison Ctrl+Alt+Fin, que vmconnect transmet a la VM comme
+        /// Ctrl+Alt+Suppr.</summary>
+        public static void SendCtrlAltEnd()
+        {
+            keybd_event(VkControl, 0, 0, IntPtr.Zero);
+            keybd_event(VkMenu, 0, 0, IntPtr.Zero);
+            keybd_event(VkEnd, 0, 0, IntPtr.Zero);
+            keybd_event(VkEnd, 0, KeyEventFKeyUp, IntPtr.Zero);
+            keybd_event(VkMenu, 0, KeyEventFKeyUp, IntPtr.Zero);
+            keybd_event(VkControl, 0, KeyEventFKeyUp, IntPtr.Zero);
         }
 
         /// <summary>Rectangle ecran de la zone video, mesure et non devine. La pile

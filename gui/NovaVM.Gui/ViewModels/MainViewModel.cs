@@ -67,6 +67,7 @@ public sealed class MainViewModel : ViewModelBase
         VmList.ConfirmRequested += (_, dialog) => OpenConfirmDialog(dialog);
         VmList.InfoRequested += (_, dialog) => OpenInfoDialog(dialog);
         VmList.SplytSetupSuggested += (_, vm) => OpenSplytSetupDialog(vm);
+        VmList.ConsoleRequested += (_, vm) => OpenConsoleWindow(vm);
 
         NavItems = new ObservableCollection<NavItem>
         {
@@ -281,6 +282,29 @@ public sealed class MainViewModel : ViewModelBase
         IsSplytSetupDialogOpen = true;
         BringToForeground();
     }
+
+    /// <summary>Ouvre (ou ramene au premier plan) la console de la VM dans sa propre
+    /// fenetre. Une seule par VM : recliquer sur "Console" ne doit pas empiler des
+    /// connexions vmconnect.</summary>
+    private void OpenConsoleWindow(Models.VirtualMachine vm)
+    {
+        if (_consoleWindows.TryGetValue(vm.Name, out var existing))
+        {
+            if (existing.WindowState == System.Windows.WindowState.Minimized)
+            {
+                existing.WindowState = System.Windows.WindowState.Normal;
+            }
+            existing.Activate();
+            return;
+        }
+
+        var window = new Controls.VmConsoleWindow(vm);
+        _consoleWindows[vm.Name] = window;
+        window.Closed += (_, _) => _consoleWindows.Remove(vm.Name);
+        window.Show();
+    }
+
+    private readonly Dictionary<string, Controls.VmConsoleWindow> _consoleWindows = new();
 
     /// <summary>Windows empeche une application en arriere-plan de voler le premier
     /// plan ; l'aller-retour par Topmost est la maniere usuelle de contourner ca
