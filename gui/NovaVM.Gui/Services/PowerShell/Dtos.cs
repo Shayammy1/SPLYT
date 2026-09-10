@@ -214,6 +214,14 @@ public sealed class StreamingQualityResultDto
     public string? KeysApplied { get; set; }
     public bool Paired { get; set; }
     public string? PairError { get; set; }
+
+    /// <summary>Vrai si Sunshine a bien ete pointe sur l'ecran virtuel VDD de
+    /// l'invite. Faux = le streaming retombe sur l'ecran Hyper-V, ou la frequence
+    /// est plafonnee et ou le mode demande par le client n'est pas applique.</summary>
+    public bool VddCaptured { get; set; }
+    public string? VddDeviceId { get; set; }
+    public string? VddFriendlyName { get; set; }
+    public string? VddModes { get; set; }
     public string? Message { get; set; }
 }
 

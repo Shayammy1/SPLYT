@@ -31,6 +31,8 @@ public sealed class MainViewModel : ViewModelBase
     private InfoDialogViewModel? _infoDialog;
     private bool _isLanguageChoiceDialogOpen;
     private LanguageChoiceDialogViewModel? _languageChoiceDialog;
+    private bool _isMoonlightLaunchDialogOpen;
+    private MoonlightLaunchDialogViewModel? _moonlightLaunchDialog;
     private bool _isSplytSetupDialogOpen;
     private SplytSetupDialogViewModel? _splytSetupDialog;
     private bool _isSidebarCollapsed;
@@ -68,6 +70,7 @@ public sealed class MainViewModel : ViewModelBase
         VmList.InfoRequested += (_, dialog) => OpenInfoDialog(dialog);
         VmList.SplytSetupSuggested += (_, vm) => OpenSplytSetupDialog(vm);
         VmList.ConsoleRequested += (_, vm) => OpenConsoleWindow(vm);
+        VmList.MoonlightLaunchRequested += (_, vm) => OpenMoonlightLaunchDialog(vm);
 
         NavItems = new ObservableCollection<NavItem>
         {
@@ -114,6 +117,24 @@ public sealed class MainViewModel : ViewModelBase
         }
 
         await CheckHyperVSetupAsync();
+    }
+
+    /// <summary>Demande la resolution et la frequence, puis lance la session. Ce
+    /// choix n'est pas cosmetique : Sunshine applique le mode reclame par le client
+    /// a l'ecran virtuel de l'invite (voir MoonlightLaunchDialogViewModel).</summary>
+    private void OpenMoonlightLaunchDialog(Models.VirtualMachine vm)
+    {
+        var dialog = new MoonlightLaunchDialogViewModel(vm.Name, vm.Resolution, vm.RefreshRateHz);
+
+        dialog.Closed += async (_, launch) =>
+        {
+            IsMoonlightLaunchDialogOpen = false;
+            MoonlightLaunchDialog = null;
+            if (launch) await VmList.LaunchWithMoonlightAsync(dialog.SelectedResolution, dialog.SelectedRefreshRate);
+        };
+
+        MoonlightLaunchDialog = dialog;
+        IsMoonlightLaunchDialogOpen = true;
     }
 
     /// <summary>Retourne vrai si l'application est en train de redemarrer pour
@@ -200,6 +221,9 @@ public sealed class MainViewModel : ViewModelBase
 
     public bool IsLanguageChoiceDialogOpen { get => _isLanguageChoiceDialogOpen; private set => SetProperty(ref _isLanguageChoiceDialogOpen, value); }
     public LanguageChoiceDialogViewModel? LanguageChoiceDialog { get => _languageChoiceDialog; private set => SetProperty(ref _languageChoiceDialog, value); }
+
+    public bool IsMoonlightLaunchDialogOpen { get => _isMoonlightLaunchDialogOpen; private set => SetProperty(ref _isMoonlightLaunchDialogOpen, value); }
+    public MoonlightLaunchDialogViewModel? MoonlightLaunchDialog { get => _moonlightLaunchDialog; private set => SetProperty(ref _moonlightLaunchDialog, value); }
 
     public bool IsSplytSetupDialogOpen { get => _isSplytSetupDialogOpen; private set => SetProperty(ref _isSplytSetupDialogOpen, value); }
     public SplytSetupDialogViewModel? SplytSetupDialog { get => _splytSetupDialog; private set => SetProperty(ref _splytSetupDialog, value); }

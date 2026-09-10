@@ -48,6 +48,12 @@ Invoke-NovaAction {
     $width = [int]$Matches[1]
     $height = [int]$Matches[2]
 
+    # Le mode retenu devient la proposition par defaut de la prochaine session : la
+    # fenetre de choix repart de la, plutot que de redemander la meme chose a chaque
+    # fois. Les autres champs des preferences (GPU, etc.) restent inchanges - voir
+    # la fusion par $PSBoundParameters dans Save-NovaVmPreferences.
+    Save-NovaVmPreferences -Name $Name -Resolution $Resolution -Hz $Fps
+
     if ($BitrateKbps -le 0) {
         $BitrateKbps = Get-NovaStreamBitrateKbps -Width $width -Height $height -Fps $Fps
     }

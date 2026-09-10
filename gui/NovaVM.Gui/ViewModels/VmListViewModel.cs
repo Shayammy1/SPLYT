@@ -74,7 +74,7 @@ public sealed class VmListViewModel : ViewModelBase
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
         GamingOptimizePrivacyCommand = new AsyncRelayCommand(() => GamingOptimizeAsync(performance: false, privacy: true),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
-        LaunchWithMoonlightCommand = new AsyncRelayCommand(LaunchWithMoonlightAsync,
+        LaunchWithMoonlightCommand = new RelayCommand(RequestMoonlightLaunch,
             () => SelectedVm?.OsInstalled == true && !IsLaunchingMoonlight);
         RunSplytSetupCommand = new RelayCommand(
             () => { if (SelectedVm is not null) SplytSetupSuggested?.Invoke(this, SelectedVm); },
@@ -469,12 +469,7 @@ public sealed class VmListViewModel : ViewModelBase
     /// <summary>Demarre la VM si besoin puis ouvre Moonlight deja connecte : le
     /// deuxieme joueur n'a rien a ouvrir ni a regler lui-meme. Voir
     /// Start-NovaVmMoonlight.ps1 pour le detail des reglages de qualite.</summary>
-    public AsyncRelayCommand LaunchWithMoonlightCommand { get; }
-
-    /// <summary>Frequence demandee au flux. 100 Hz par defaut : c'est tout l'interet
-    /// de passer par VDD + Sunshine plutot que par la console vmconnect, plafonnee
-    /// bien plus bas.</summary>
-    private const int MoonlightFps = 100;
+    public RelayCommand LaunchWithMoonlightCommand { get; }
 
     /// <summary>Le bouton "SPLYT" de l'onglet Ressources : reste disponible une fois
     /// Windows installe, pour relancer la configuration complete (ou la reprendre si
@@ -505,7 +500,19 @@ public sealed class VmListViewModel : ViewModelBase
     /// <summary>Etape en cours du lancement Moonlight, ou resultat final.</summary>
     public string? MoonlightStatus { get => _moonlightStatus; private set => SetProperty(ref _moonlightStatus, value); }
 
-    private async Task LaunchWithMoonlightAsync()
+    /// <summary>Le bouton n'enchaine plus directement sur le lancement : il passe la
+    /// main a la fenetre de choix (resolution + frequence), qui rappellera
+    /// LaunchWithMoonlightAsync avec le mode retenu. Le mode n'est pas un simple
+    /// confort d'affichage cote hote - c'est lui que Sunshine applique a l'ecran
+    /// virtuel de l'invite pour toute la session.</summary>
+    private void RequestMoonlightLaunch()
+    {
+        if (SelectedVm is null) return;
+        ErrorMessage = null;
+        MoonlightLaunchRequested?.Invoke(this, SelectedVm);
+    }
+
+    public async Task LaunchWithMoonlightAsync(string resolution, int fps)
     {
         if (SelectedVm is null) return;
         ErrorMessage = null;
@@ -514,7 +521,7 @@ public sealed class VmListViewModel : ViewModelBase
         try
         {
             var (result, error) = await _vmService.StartWithMoonlightAsync(
-                SelectedVm.Name, MoonlightFps, OnMoonlightProgress);
+                SelectedVm.Name, fps, resolution, OnMoonlightProgress);
 
             MoonlightStatus = result is not null
                 ? result.Message
@@ -557,6 +564,11 @@ public sealed class VmListViewModel : ViewModelBase
     /// un clic. Emis aussi quand l'utilisateur clique lui-meme sur le bouton
     /// "SPLYT" de l'onglet Ressources.</summary>
     public event EventHandler<VirtualMachine>? SplytSetupSuggested;
+
+    /// <summary>Demande d'ouverture de la fenetre de choix resolution/frequence
+    /// avant une session Moonlight. La coquille (MainViewModel) l'affiche puis
+    /// rappelle LaunchWithMoonlightAsync avec le mode retenu.</summary>
+    public event EventHandler<VirtualMachine>? MoonlightLaunchRequested;
 
     /// <summary>Demande d'ouverture de la console de la VM dans sa propre fenetre
     /// (voir VmConsoleWindow). La coquille s'en charge : ouvrir une fenetre est

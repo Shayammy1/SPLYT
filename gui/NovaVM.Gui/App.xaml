@@ -68,6 +68,9 @@
             <DataTemplate DataType="{x:Type vm:InfoDialogViewModel}">
                 <controls:InfoDialog />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:MoonlightLaunchDialogViewModel}">
+                <controls:MoonlightLaunchDialog />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:LanguageChoiceDialogViewModel}">
                 <controls:LanguageChoiceDialog />
             </DataTemplate>

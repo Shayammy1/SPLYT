@@ -94,12 +94,25 @@ Invoke-NovaAction {
                     for ($i = 0; $i -lt $existingLines.Count; $i++) {
                         if ($existingLines[$i] -match '^\s*csrf_allowed_origins\s*=\s*(.*)$') {
                             $csrfLineIndex = $i
-                            $existingOrigins = $Matches[1] -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+                            # Extraction par motif plutot que par decoupage sur la virgule :
+                            # les versions precedentes ont pu ecrire une ligne ou les origines
+                            # sont COLLEES les unes aux autres (voir le @() ci-dessous), et un
+                            # simple split la laisserait telle quelle a jamais. Repartir des
+                            # adresses reellement reconnues repare la ligne au passage.
+                            $existingOrigins = @([regex]::Matches($Matches[1], 'https?://[^,\s]+?:\d+') |
+                                ForEach-Object { $_.Value })
                             break
                         }
                     }
 
-                    $allOrigins = @($existingOrigins + $newOrigins | Select-Object -Unique)
+                    # Le @() autour de la concatenation n'est pas decoratif : quand une seule
+                    # origine etait deja presente, PowerShell rendait $existingOrigins sous
+                    # forme de CHAINE et non de tableau, et "+" concatenait alors du texte au
+                    # lieu de fusionner deux listes. La ligne ecrite devenait
+                    # "https://a:47990https://b:47990" - une origine unique et invalide, donc
+                    # une protection CSRF qui refusait justement l'adresse qu'on venait
+                    # d'autoriser.
+                    $allOrigins = @(@($existingOrigins) + @($newOrigins) | Select-Object -Unique)
                     $newLine = "csrf_allowed_origins = $($allOrigins -join ',')"
 
                     if ($csrfLineIndex -ge 0) {

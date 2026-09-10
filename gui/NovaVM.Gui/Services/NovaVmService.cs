@@ -296,11 +296,11 @@ public sealed class NovaVmService
     /// Start-NovaVmMoonlight.ps1. Ne demande aucun identifiant : tout se passe cote
     /// hote et via Hyper-V.</summary>
     public async Task<(MoonlightLaunchResultDto? Result, string? Error)> StartWithMoonlightAsync(
-        string name, int fps, Action<string>? onProgress = null)
+        string name, int fps, string resolution, Action<string>? onProgress = null)
     {
         var result = await RunAsyncCore("Start-NovaVmMoonlight.ps1", $"Lancement de '{name}' avec Moonlight",
             silent: false, onProgress,
-            ("Name", name), ("Fps", fps.ToString(CultureInfo.InvariantCulture)));
+            ("Name", name), ("Fps", fps.ToString(CultureInfo.InvariantCulture)), ("Resolution", resolution));
 
         if (!result.Success) return (null, result.Error ?? result.RawError);
         var dto = result.DeserializeData<MoonlightLaunchResultDto>();

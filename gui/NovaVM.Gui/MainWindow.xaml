@@ -208,6 +208,14 @@
             <ContentControl Content="{Binding InfoDialog}" Focusable="False" />
         </Grid>
 
+        <!-- Voile + choix de la resolution et de la frequence, avant chaque session
+             Moonlight : c'est le client qui impose le mode d'affichage a l'invite. -->
+        <Grid Grid.Row="0" Grid.RowSpan="2"
+              Visibility="{Binding IsMoonlightLaunchDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#B0000000" />
+            <ContentControl Content="{Binding MoonlightLaunchDialog}" Focusable="False" />
+        </Grid>
+
         <!-- Voile + choix de la langue (tout premier demarrage uniquement) -->
         <Grid Grid.Row="0" Grid.RowSpan="2"
               Visibility="{Binding IsLanguageChoiceDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">

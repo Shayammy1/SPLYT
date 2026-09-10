@@ -233,6 +233,120 @@ Invoke-NovaAction {
             throw "Sunshine n'est pas installe dans cette VM ($exePath introuvable)."
         }
 
+        # --- Ecran virtuel VDD : les modes doivent d'abord EXISTER ------------
+        #
+        # Le pilote VDD n'expose que les couples resolution/frequence listes dans
+        # C:\VirtualDisplayDriver\vdd_settings.xml (chemin lu dans les chaines de
+        # MttVDD.dll, aux cotes de l'ancien option.txt). Sans ce fichier il
+        # fonctionne sur ses valeurs codees en dur, ou le 120 Hz n'est pas garanti :
+        # Sunshine aurait beau demander 120 Hz, Windows refuserait le mode.
+        #
+        # <g_refresh_rate> s'applique a TOUTES les resolutions listees : une seule
+        # declaration par frequence suffit donc a couvrir toute la grille.
+        # Cette liste doit rester alignee sur celle proposee par la fenetre de
+        # lancement Moonlight (MoonlightLaunchDialogViewModel) : une resolution
+        # proposee mais absente d'ici serait simplement refusee par l'invite.
+        $vddResolutions = @(
+            @{ w = 1280; h = 720 }, @{ w = 1920; h = 1080 }, @{ w = 2560; h = 1440 },
+            @{ w = 3440; h = 1440 }, @{ w = 3840; h = 2160 }
+        )
+        $vddRefreshRates = @(60, 90, 100, 120, 144)
+
+        $xml = New-Object System.Text.StringBuilder
+        [void]$xml.AppendLine('<?xml version="1.0" encoding="utf-8"?>')
+        [void]$xml.AppendLine('<!-- Genere par SPLYT - modifie a chaque configuration du streaming. -->')
+        [void]$xml.AppendLine('<vdd_settings>')
+        [void]$xml.AppendLine('  <monitors><count>1</count></monitors>')
+        [void]$xml.AppendLine('  <gpu><friendlyname>default</friendlyname></gpu>')
+        [void]$xml.AppendLine('  <global>')
+        foreach ($rate in $vddRefreshRates) { [void]$xml.AppendLine("    <g_refresh_rate>$rate</g_refresh_rate>") }
+        [void]$xml.AppendLine('  </global>')
+        [void]$xml.AppendLine('  <resolutions>')
+        foreach ($res in $vddResolutions) {
+            [void]$xml.AppendLine('    <resolution>')
+            [void]$xml.AppendLine("      <width>$($res.w)</width>")
+            [void]$xml.AppendLine("      <height>$($res.h)</height>")
+            [void]$xml.AppendLine('      <refresh_rate>60</refresh_rate>')
+            [void]$xml.AppendLine('    </resolution>')
+        }
+        [void]$xml.AppendLine('  </resolutions>')
+        [void]$xml.AppendLine('</vdd_settings>')
+
+        # Ecriture SANS BOM. "Set-Content -Encoding UTF8" en ajoute un sous
+        # PowerShell 5.1, et un BOM en tete d'un fichier de configuration se colle
+        # au premier element/cle : Sunshine lisait ainsi une cle nommee
+        # "<BOM>csrf_allowed_origins", donc inconnue et silencieusement ignoree
+        # (constate dans son journal). Meme precaution ici pour le XML du pilote.
+        $vddDir = "C:\VirtualDisplayDriver"
+        New-Item -ItemType Directory -Path $vddDir -Force | Out-Null
+        [System.IO.File]::WriteAllText(
+            (Join-Path $vddDir "vdd_settings.xml"), $xml.ToString(), (New-Object System.Text.UTF8Encoding($false)))
+
+        # Le pilote ne relit son fichier qu'au demarrage du peripherique : sans ce
+        # cycle desactivation/activation, la nouvelle grille de modes n'existe pas
+        # encore quand Sunshine essaie de l'appliquer.
+        $vddDevice = Get-PnpDevice -Class Display -ErrorAction SilentlyContinue |
+            Where-Object { $_.FriendlyName -eq 'Virtual Display Driver' } | Select-Object -First 1
+        $vddPresent = $null -ne $vddDevice
+        if ($vddPresent) {
+            try {
+                Disable-PnpDevice -InstanceId $vddDevice.InstanceId -Confirm:$false -ErrorAction Stop
+                Start-Sleep -Seconds 2
+                Enable-PnpDevice -InstanceId $vddDevice.InstanceId -Confirm:$false -ErrorAction Stop
+                Start-Sleep -Seconds 5
+            } catch {
+                # Le VDD reste sur ses anciens modes : c'est degrade, pas bloquant.
+                $vddPresent = $false
+            }
+        }
+
+        # --- Identification de l'ecran VDD pour Sunshine ----------------------
+        #
+        # Sunshine attend dans "output_name" l'identifiant stable de l'ecran
+        # (un GUID sous Windows). Il est impossible de l'obtenir depuis ici par les
+        # voies habituelles : PowerShell Direct s'execute en session 0, sans bureau,
+        # et dxgi-info.exe y renvoie une liste d'ecrans VIDE (verifie - l'adaptateur
+        # apparait, la section OUTPUT est vide). Seul un processus de la session
+        # interactive voit les ecrans.
+        #
+        # Sunshine, lui, EST dans cette session : il enumere les ecrans a chaque
+        # demarrage et ecrit le resultat en JSON dans son journal. On le redemarre
+        # donc pour obtenir un inventaire frais, et on le lit. C'est le seul canal
+        # disponible, et il est fiable parce qu'on vient de provoquer l'ecriture.
+        $vddDeviceId = $null
+        $vddFriendlyName = $null
+        if ($vddPresent) {
+            Restart-Service -Name "SunshineService" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 10
+
+            $logPath = Join-Path $sunshineDir "config\sunshine.log"
+            if (Test-Path -LiteralPath $logPath) {
+                $log = Get-Content -LiteralPath $logPath -Raw -ErrorAction SilentlyContinue
+                $marker = $log.LastIndexOf("Currently available display devices:")
+                if ($marker -ge 0) {
+                    $start = $log.IndexOf('[', $marker)
+                    # Fin du tableau JSON : premiere ligne ne contenant que "]".
+                    $end = [regex]::Match($log.Substring($start), '(?m)^\]').Index
+                    if ($start -ge 0 -and $end -gt 0) {
+                        try {
+                            $devices = $log.Substring($start, $end + 1) | ConvertFrom-Json
+                            # Le VDD se reconnait a son identifiant fabricant EDID "MTT"
+                            # (Virtual-Display-Driver), avec le nom convivial en secours.
+                            $match = $devices | Where-Object {
+                                $_.edid.manufacturer_id -eq 'MTT' -or $_.friendly_name -match 'VDD'
+                            } | Select-Object -First 1
+                            if ($match) {
+                                $vddDeviceId = $match.device_id
+                                $vddFriendlyName = $match.friendly_name
+                            }
+                        } catch {
+                            $vddDeviceId = $null
+                        }
+                    }
+                }
+            }
+        }
+
         # Cles verifiees dans la documentation officielle Sunshine. On autorise les
         # codecs les plus efficaces ; c'est le client qui choisira ensuite lequel
         # utiliser selon ce que son decodeur sait faire.
@@ -240,6 +354,30 @@ Invoke-NovaAction {
         $desired = @{
             "hevc_mode" = "3"
             "av1_mode"  = "3"
+        }
+
+        if ($vddDeviceId) {
+            # Capture l'ecran VDD et non l'ecran Hyper-V. Les options "dd_" sont
+            # celles de la configuration d'affichage de Sunshine (documentation
+            # officielle) :
+            #   ensure_only_display : pendant la session, le VDD devient le SEUL
+            #     ecran de l'invite. C'est ce qui met reellement le bureau, la barre
+            #     des taches et les fenetres sur l'ecran diffuse ; se contenter de
+            #     l'activer streamerait un bureau vide, tout etant reste sur l'ecran
+            #     Hyper-V.
+            #   auto : Sunshine applique la resolution et la frequence DEMANDEES PAR
+            #     LE CLIENT. C'est la piece qui manquait : SPLYT ne peut pas changer
+            #     le mode d'affichage de l'invite depuis l'hote (session 0), mais
+            #     Sunshine tourne dans la session interactive et en a le droit.
+            #   revert_on_disconnect : l'ecran Hyper-V revient a la fin de la
+            #     session. Sans cela, l'invite resterait sur un ecran invisible
+            #     depuis la console.
+            $desired["output_name"] = $vddDeviceId
+            $desired["dd_configuration_option"] = "ensure_only_display"
+            $desired["dd_resolution_option"] = "auto"
+            $desired["dd_refresh_rate_option"] = "auto"
+            $desired["dd_config_revert_on_disconnect"] = "enabled"
+            $desired["dd_config_revert_delay"] = "3000"
         }
 
         $lines = @()
@@ -263,7 +401,9 @@ Invoke-NovaAction {
             }
             if (-not $replaced) { $lines += "$key = $($desired[$key])" }
         }
-        Set-Content -LiteralPath $configPath -Value $lines -Encoding UTF8
+        # Sans BOM, pour la meme raison que le XML du pilote ci-dessus : Sunshine
+        # prenait le BOM pour le debut du nom de la premiere cle du fichier.
+        [System.IO.File]::WriteAllLines($configPath, [string[]]$lines, (New-Object System.Text.UTF8Encoding($false)))
 
         # Identifiants de l'interface web : indispensables pour que l'hote puisse
         # valider l'appariement par l'API. Les (re)definir est sans effet de bord :
@@ -284,7 +424,14 @@ Invoke-NovaAction {
         Restart-Service -Name "SunshineService" -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 5
 
-        [ordered]@{ configPath = $configPath; keysApplied = @($desired.Keys) -join ", " }
+        [ordered]@{
+            configPath      = $configPath
+            keysApplied     = @($desired.Keys) -join ", "
+            vddPresent      = $vddPresent
+            vddDeviceId     = $vddDeviceId
+            vddFriendlyName = $vddFriendlyName
+            vddModes        = "$(@($vddResolutions | ForEach-Object { "$($_.w)x$($_.h)" }) -join ', ') a $($vddRefreshRates -join '/') Hz"
+        }
     }
 
     # --- Appariement automatique -------------------------------------------
@@ -441,13 +588,27 @@ Invoke-NovaAction {
         keysApplied     = $guestOutcome.keysApplied
         paired          = $paired
         pairError       = $pairError
-        message         = if ($paired -and $alreadyPaired) {
-            "Sunshine configure (codecs HEVC/AV1 autorises). Moonlight etait deja apparie avec cette VM : rien a refaire. Utilisez 'Lancer avec Moonlight' pour demarrer une session."
-        } elseif ($paired) {
-            "Sunshine configure (codecs HEVC/AV1 autorises) et apparie automatiquement avec Moonlight : plus aucun code PIN a saisir. Utilisez 'Lancer avec Moonlight' pour demarrer une session."
-        } else {
-            "Sunshine est configure, mais l'appariement automatique n'a pas abouti$(if ($pairError) { " ($pairError)" }). Vous pouvez apparier manuellement depuis $baseUrl (identifiant : $SunshineUser)."
-        }
+        vddCaptured     = [bool]$guestOutcome.vddDeviceId
+        vddDeviceId     = $guestOutcome.vddDeviceId
+        vddFriendlyName = $guestOutcome.vddFriendlyName
+        vddModes        = $guestOutcome.vddModes
+        message         = $(
+            $capture = if ($guestOutcome.vddDeviceId) {
+                " Le streaming utilisera l'ecran virtuel VDD ($($guestOutcome.vddFriendlyName)), a la resolution et a la frequence choisies au lancement."
+            } elseif ($guestOutcome.vddPresent) {
+                " L'ecran virtuel VDD n'a pas pu etre identifie : le streaming utilisera l'ecran Hyper-V, limite en frequence."
+            } else {
+                " Aucun ecran virtuel VDD dans cette VM : le streaming utilisera l'ecran Hyper-V, limite en frequence."
+            }
+
+            if ($paired -and $alreadyPaired) {
+                "Sunshine configure (codecs HEVC/AV1 autorises). Moonlight etait deja apparie avec cette VM : rien a refaire.$capture"
+            } elseif ($paired) {
+                "Sunshine configure (codecs HEVC/AV1 autorises) et apparie automatiquement avec Moonlight : plus aucun code PIN a saisir.$capture"
+            } else {
+                "Sunshine est configure, mais l'appariement automatique n'a pas abouti$(if ($pairError) { " ($pairError)" }). Vous pouvez apparier manuellement depuis $baseUrl (identifiant : $SunshineUser).$capture"
+            }
+        )
     }
     Write-NovaResult -Success $true -DataJson ([pscustomobject]$result | ConvertTo-Json -Compress)
 }
