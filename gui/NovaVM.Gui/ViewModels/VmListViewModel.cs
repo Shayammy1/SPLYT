@@ -565,6 +565,11 @@ public sealed class VmListViewModel : ViewModelBase
     /// "SPLYT" de l'onglet Ressources.</summary>
     public event EventHandler<VirtualMachine>? SplytSetupSuggested;
 
+    /// <summary>Emis quand une VM vient de s'arreter, quelle qu'en soit la cause.
+    /// La coquille referme alors ce qui s'y rattachait (fenetre de console, et donc
+    /// le vmconnect qu'elle pilote).</summary>
+    public event EventHandler<VirtualMachine>? VmStoppedRequested;
+
     /// <summary>Demande d'ouverture de la fenetre de choix resolution/frequence
     /// avant une session Moonlight. La coquille (MainViewModel) l'affiche puis
     /// rappelle LaunchWithMoonlightAsync avec le mode retenu.</summary>
@@ -681,8 +686,18 @@ public sealed class VmListViewModel : ViewModelBase
     private async Task ChangeStateAsync(Func<string, Task<VirtualMachine?>> action)
     {
         if (SelectedVm is null) return;
-        var updated = await action(SelectedVm.Name);
-        if (updated is not null) SelectedVm.UpdateFrom(ToDto(updated));
+
+        // L'etat est releve AVANT l'action, et la transition signalee ici : cette
+        // methode applique le nouvel etat elle-meme, a partir de ce que le script
+        // renvoie, sans repasser par RefreshStatesAsync. Ne detecter l'arret que
+        // la-bas laissait donc la console ouverte quand l'arret venait du bouton -
+        // c'est-a-dire dans le cas le plus courant.
+        var vm = SelectedVm;
+        var wasRunning = vm.State == VmState.Running;
+
+        var updated = await action(vm.Name);
+        if (updated is not null) vm.UpdateFrom(ToDto(updated));
+        if (wasRunning && vm.State != VmState.Running) VmStoppedRequested?.Invoke(this, vm);
         RaiseAllCanExecuteChanged();
 
         // Sans ca, la page Accueil gardait l'ancien etat apres un demarrage/arret
@@ -726,8 +741,17 @@ public sealed class VmListViewModel : ViewModelBase
             }
 
             if (fresh.State == vm.State) continue;
+
+            // La VM vient de quitter l'etat "en cours". Tout ce qui etait branche
+            // dessus doit se refermer : la console garderait sinon un vmconnect
+            // vivant accroche a une machine eteinte, et c'est lui qu'on retrouve au
+            // rebranchement suivant sous la forme d'une session deja ouverte.
+            // Branche sur la TRANSITION et non sur le bouton "Arreter" : la VM peut
+            // aussi s'eteindre toute seule, depuis son propre menu Demarrer.
+            var wasRunning = vm.State == VmState.Running;
             vm.State = fresh.State;
             changed = true;
+            if (wasRunning && fresh.State != VmState.Running) VmStoppedRequested?.Invoke(this, vm);
         }
 
         if (!changed) return;

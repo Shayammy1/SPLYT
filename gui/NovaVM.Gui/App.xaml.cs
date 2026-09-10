@@ -32,6 +32,11 @@ public partial class App : Application
         // processus SPLYT, la fenetre n'a pas besoin d'attendre la fin reelle.
         mainWindow.Closing += (_, _) =>
         {
+            // Les consoles d'abord : leur processus vmconnect est un processus
+            // separe, qui ne disparait pas parce que SPLYT se ferme. Sans cette
+            // fermeture explicite, il survit sans fenetre visible et garde une
+            // connexion ouverte sur la VM.
+            mainViewModel.CloseAllConsoleWindows();
             _ = vmService.StopAllRunningVmsAsync();
         };
         mainWindow.Show();

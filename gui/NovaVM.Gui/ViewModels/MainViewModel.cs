@@ -71,6 +71,7 @@ public sealed class MainViewModel : ViewModelBase
         VmList.SplytSetupSuggested += (_, vm) => OpenSplytSetupDialog(vm);
         VmList.ConsoleRequested += (_, vm) => OpenConsoleWindow(vm);
         VmList.MoonlightLaunchRequested += (_, vm) => OpenMoonlightLaunchDialog(vm);
+        VmList.VmStoppedRequested += (_, vm) => CloseConsoleWindow(vm);
 
         NavItems = new ObservableCollection<NavItem>
         {
@@ -329,6 +330,29 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     private readonly Dictionary<string, Controls.VmConsoleWindow> _consoleWindows = new();
+
+    /// <summary>Referme la console d'une VM qui vient de s'arreter. Sans ca, la
+    /// fenetre restait ouverte sur une machine eteinte avec son processus vmconnect
+    /// toujours vivant : au redemarrage suivant, c'est cette connexion fantome qu'on
+    /// retrouvait, et non une console neuve.</summary>
+    private void CloseConsoleWindow(Models.VirtualMachine vm)
+    {
+        if (!_consoleWindows.TryGetValue(vm.Name, out var window)) return;
+        _consoleWindows.Remove(vm.Name);
+        try { window.Close(); } catch { /* deja fermee par l'utilisateur */ }
+    }
+
+    /// <summary>Ferme toutes les consoles ouvertes - a la fermeture de SPLYT. Un
+    /// vmconnect lance par SPLYT ne meurt pas tout seul quand SPLYT disparait :
+    /// il faut le fermer explicitement, sinon il survit sans fenetre visible.</summary>
+    public void CloseAllConsoleWindows()
+    {
+        foreach (var window in _consoleWindows.Values.ToList())
+        {
+            try { window.Close(); } catch { /* best-effort */ }
+        }
+        _consoleWindows.Clear();
+    }
 
     /// <summary>Windows empeche une application en arriere-plan de voler le premier
     /// plan ; l'aller-retour par Topmost est la maniere usuelle de contourner ca
