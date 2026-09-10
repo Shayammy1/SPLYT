@@ -47,7 +47,7 @@ public sealed class VmListViewModel : ViewModelBase
 
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
         OpenCreateVmDialogCommand = new RelayCommand(() => CreateVmRequested?.Invoke(this, EventArgs.Empty));
-        StartCommand = new AsyncRelayCommand(() => ChangeStateAsync(_vmService.StartVmAsync), () => SelectedVm is { State: VmState.Off or VmState.Saved or VmState.Error });
+        StartCommand = new AsyncRelayCommand(StartAndShowConsoleAsync, () => SelectedVm is { State: VmState.Off or VmState.Saved or VmState.Error });
         StopCommand = new RelayCommand(AskHowToStop, () => SelectedVm is { State: VmState.Running });
         DeleteCommand = new RelayCommand(AskDeleteConfirmation, () => SelectedVm is not null);
         SaveResourcesCommand = new AsyncRelayCommand(SaveResourcesAsync, () => SelectedVm is not null);
@@ -656,6 +656,16 @@ public sealed class VmListViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Demarre la VM puis ouvre SA console, celle de SPLYT. C'est ici et
+    /// non dans NovaVmService : le service ouvrait auparavant la fenetre vmconnect
+    /// brute (menu Fichier/Action/Media, barre d'outils Hyper-V), qui surgissait
+    /// par-dessus l'application et donnait l'impression que rien n'avait change.</summary>
+    private async Task StartAndShowConsoleAsync()
+    {
+        await ChangeStateAsync(_vmService.StartVmAsync);
+        if (SelectedVm is { State: VmState.Running }) ConsoleRequested?.Invoke(this, SelectedVm);
+    }
+
     private async Task ChangeStateAsync(Func<string, Task<VirtualMachine?>> action)
     {
         if (SelectedVm is null) return;
@@ -1033,6 +1043,12 @@ public sealed class VmListViewModel : ViewModelBase
         DiskPath = vm.DiskPath,
         DiskSizeGb = vm.DiskSizeGb,
         IsoPath = vm.IsoPath,
+        // Ces deux drapeaux manquaient : UpdateFrom(ToDto(...)) les remettait donc a
+        // faux apres chaque demarrage/arret, ce qui faisait disparaitre le bouton
+        // SPLYT et empechait la console de savoir qu'il faut passer l'invite de
+        // demarrage sur CD.
+        OsInstalled = vm.OsInstalled,
+        NeedsBootKeyPress = vm.NeedsBootKeyPress,
         LastError = vm.LastError,
     };
 }

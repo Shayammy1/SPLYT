@@ -106,6 +106,29 @@ public sealed class VmConsoleHost : HwndHost
         Native.SendCtrlAltEnd();
     }
 
+    /// <summary>Martele Espace pendant quelques secondes pour passer l'invite
+    /// firmware "Press any key to boot from CD or DVD...", que l'utilisateur ne
+    /// peut pas attraper a temps.
+    ///
+    /// La touche est envoyee DANS la fenetre de la console et non via le clavier
+    /// synthetique WMI (Msvm_Keyboard.TypeKey) : verifie a l'ecran, WMI fonctionne
+    /// sur une VM sans GPU-P mais reste sans effet des qu'un adaptateur GPU-P est
+    /// attache - les appels reussissent sans erreur et la touche n'arrive jamais.
+    /// GPU-P etant la raison d'etre de SPLYT, c'etait inutilisable.</summary>
+    public async Task SendBootKeyBurstAsync()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(12);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (_console != IntPtr.Zero)
+            {
+                FocusConsole();
+                Native.SendSpace();
+            }
+            await Task.Delay(250);
+        }
+    }
+
     protected override HandleRef BuildWindowCore(HandleRef hwndParent)
     {
         // Fenetre conteneur peinte au fond SPLYT : c'est elle qu'on voit autour de
@@ -359,6 +382,7 @@ public sealed class VmConsoleHost : HwndHost
         private const byte VkControl = 0x11;
         private const byte VkMenu = 0x12; // Alt
         private const byte VkEnd = 0x23;
+        private const byte VkSpace = 0x20;
         private const uint KeyEventFKeyUp = 0x0002;
 
         // Couleur de fond du conteneur = BackgroundColor de Themes/Colors.xaml
@@ -525,6 +549,12 @@ public sealed class VmConsoleHost : HwndHost
 
             var ex = (long)GetWindowLongPtr(hWnd, GwlExStyle);
             if ((ex & WsExAppWindow) != 0) SetWindowLongPtr(hWnd, GwlExStyle, (IntPtr)(ex & ~WsExAppWindow));
+        }
+
+        public static void SendSpace()
+        {
+            keybd_event(VkSpace, 0, 0, IntPtr.Zero);
+            keybd_event(VkSpace, 0, KeyEventFKeyUp, IntPtr.Zero);
         }
 
         /// <summary>Combinaison Ctrl+Alt+Fin, que vmconnect transmet a la VM comme

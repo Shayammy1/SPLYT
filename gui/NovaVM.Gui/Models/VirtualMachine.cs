@@ -27,6 +27,7 @@ public sealed class VirtualMachine : ObservableObject
     private double _diskSizeGb;
     private string? _isoPath;
     private bool _osInstalled;
+    private bool _needsBootKeyPress;
     private string? _lastError;
 
     public string Id { get => _id; set => SetProperty(ref _id, value); }
@@ -67,6 +68,12 @@ public sealed class VirtualMachine : ObservableObject
     /// <summary>Vrai des qu'un Windows a demarre au moins une fois dans cette VM :
     /// c'est ce qui rend le bouton "SPLYT" (configuration en un clic) pertinent.</summary>
     public bool OsInstalled { get => _osInstalled; set => SetProperty(ref _osInstalled, value); }
+
+    /// <summary>Vrai quand une ISO est montee ET encore premier peripherique de
+    /// demarrage : il faut alors passer l'invite firmware "Press any key to boot
+    /// from CD or DVD...", que la console fait a la place de l'utilisateur (voir
+    /// VmConsoleHost.SendBootKeyBurst).</summary>
+    public bool NeedsBootKeyPress { get => _needsBootKeyPress; set => SetProperty(ref _needsBootKeyPress, value); }
     public string? LastError { get => _lastError; set => SetProperty(ref _lastError, value); }
 
     public bool HasGpuPartition => !string.IsNullOrWhiteSpace(GpuName);
@@ -102,6 +109,7 @@ public sealed class VirtualMachine : ObservableObject
         DiskSizeGb = dto.DiskSizeGb,
         IsoPath = dto.IsoPath,
         OsInstalled = dto.OsInstalled,
+        NeedsBootKeyPress = dto.NeedsBootKeyPress,
         LastError = dto.LastError,
     };
 
@@ -122,6 +130,7 @@ public sealed class VirtualMachine : ObservableObject
         DiskSizeGb = dto.DiskSizeGb;
         IsoPath = dto.IsoPath;
         OsInstalled = dto.OsInstalled;
+        NeedsBootKeyPress = dto.NeedsBootKeyPress;
         LastError = dto.LastError;
         OnPropertyChanged(nameof(HasGpuPartition));
         OnPropertyChanged(nameof(MemoryGb));

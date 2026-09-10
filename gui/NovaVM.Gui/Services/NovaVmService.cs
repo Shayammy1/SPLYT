@@ -86,10 +86,11 @@ public sealed class NovaVmService
             : (VirtualMachine.FromDto(dto), null);
     }
 
-    /// <summary>Demarre reellement la VM Hyper-V puis ouvre sa console d'affichage
-    /// (vmconnect.exe) : c'est la ou le BIOS/UEFI et les messages de demarrage
-    /// (ou "aucun peripherique amorcable") sont reellement visibles - on ne les
-    /// simule jamais dans la GUI.</summary>
+    /// <summary>Demarre reellement la VM Hyper-V. L'affichage de la console est
+    /// la responsabilite de l'interface (voir VmConsoleWindow, ouverte par
+    /// VmListViewModel apres un demarrage) et non de ce service : c'est elle qui
+    /// sait presenter la VM dans l'habillage de SPLYT, alors qu'on ouvrait avant
+    /// la fenetre vmconnect brute, avec son menu et sa barre d'outils Hyper-V.</summary>
     public async Task<VirtualMachine?> StartVmAsync(string name)
     {
         var result = await RunAsyncCore(
@@ -97,152 +98,9 @@ public sealed class NovaVmService
         if (!result.Success) return null;
 
         var dto = result.DeserializeData<VirtualMachineDto>();
-        if (dto is null) return null;
-
-        OpenVmConnectConsole(name, dto.NeedsBootKeyPress);
-        return VirtualMachine.FromDto(dto);
+        return dto is null ? null : VirtualMachine.FromDto(dto);
     }
 
-    /// <summary>needsBootKeyPress : voir ConvertTo-NovaVmDto - vrai seulement si un
-    /// lecteur DVD est monte ET encore premier peripherique de demarrage (donc
-    /// Windows Setup pas encore termine). Dans ce cas, une fois la console ouverte,
-    /// SPLYT simule elle-meme un appui pour passer l'invite firmware "Press any key
-    /// to boot from CD or DVD..." - voir SendBootKeyBurstAsync pour pourquoi ce
-    /// n'est PAS fait via le clavier synthetique WMI (Msvm_Keyboard).</summary>
-    private async void OpenVmConnectConsole(string vmName, bool needsBootKeyPress)
-    {
-        try
-        {
-            var vmconnectPath = Path.Combine(Environment.SystemDirectory, "vmconnect.exe");
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = vmconnectPath,
-                UseShellExecute = false,
-            };
-            startInfo.ArgumentList.Add("localhost");
-            startInfo.ArgumentList.Add(vmName);
-            var process = Process.Start(startInfo);
-            if (process is null) return;
-
-            var hwnd = await ResizeConsoleWindowAsync(process);
-            if (needsBootKeyPress && hwnd != IntPtr.Zero)
-            {
-                await SendBootKeyBurstAsync(hwnd);
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.Log(LogLevel.Warning, "vmconnect.exe",
-                $"Impossible d'ouvrir automatiquement la console de '{vmName}'", ex.Message);
-        }
-    }
-
-    // Taille "moyenne" ciblee pour la console vmconnect : assez grande pour voir
-    // tout l'installeur Windows (bouton "Suivant" compris), mais pas plein ecran.
-    private const int ConsoleWindowWidth = 1280;
-    private const int ConsoleWindowHeight = 800;
-
-    /// <summary>vmconnect s'ouvre par defaut dans une petite fenetre a taille fixe
-    /// (ex. 210x308). Un redimensionnement direct (SetWindowPos/MoveWindow) depuis
-    /// cette taille est imprevisible : vmconnect le "clampe" parfois a une taille
-    /// arbitraire (verifie empiriquement). En revanche, agrandir la fenetre UNE
-    /// FOIS (fiable, verifie) puis la redimensionner ENSUITE a la taille voulue
-    /// fonctionne de maniere fiable et stable dans le temps. Resultat : une
-    /// fenetre moyenne (1280x800), pas plein ecran, avec tout l'affichage visible.
-    /// Retourne le handle de la fenetre (IntPtr.Zero si jamais trouvee) pour que
-    /// l'appelant puisse y envoyer des touches ensuite (voir SendBootKeyBurstAsync).</summary>
-    private static async Task<IntPtr> ResizeConsoleWindowAsync(Process process)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        var hwnd = IntPtr.Zero;
-        while (DateTime.UtcNow < deadline)
-        {
-            try
-            {
-                process.Refresh();
-                hwnd = process.MainWindowHandle;
-            }
-            catch (InvalidOperationException)
-            {
-                return IntPtr.Zero; // Le processus s'est deja termine.
-            }
-            if (hwnd != IntPtr.Zero) break;
-            await Task.Delay(200);
-        }
-        if (hwnd == IntPtr.Zero) return IntPtr.Zero;
-
-        NativeWindow.ShowWindow(hwnd, NativeWindow.SW_MAXIMIZE);
-        await Task.Delay(500);
-
-        var (x, y) = NativeWindow.GetCenteredPosition(ConsoleWindowWidth, ConsoleWindowHeight);
-        NativeWindow.MoveWindow(hwnd, x, y, ConsoleWindowWidth, ConsoleWindowHeight, true);
-        return hwnd;
-    }
-
-    /// <summary>Simule un appui repete sur Espace DANS la fenetre vmconnect (comme le
-    /// ferait un utilisateur), pour passer automatiquement l'invite firmware "Press
-    /// any key to boot from CD or DVD...".
-    ///
-    /// Verifie empiriquement (capture d'ecran + logs de diagnostic) qu'une premiere
-    /// approche - le clavier synthetique WMI (Msvm_Keyboard.TypeKey), independante
-    /// de toute fenetre - fonctionnait sur une VM sans GPU-P mais PAS sur une VM
-    /// avec un adaptateur GPU-P attache (Add-VMGpuPartitionAdapter) : les appels WMI
-    /// reussissaient sans la moindre erreur, mais la touche n'atteignait jamais
-    /// reellement l'invite de demarrage. Puisque GPU-P est la fonctionnalite phare
-    /// de SPLYT, cette approche etait inutilisable pour l'usage reel. A l'inverse,
-    /// un appui reellement recu par la fenetre vmconnect (confirme manuellement par
-    /// l'utilisateur) fonctionne dans tous les cas, GPU-P ou non - d'ou SendInput
-    /// cible sur cette fenetre plutot que WMI.</summary>
-    private static async Task SendBootKeyBurstAsync(IntPtr hwnd)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (DateTime.UtcNow < deadline)
-        {
-            NativeWindow.SetForegroundWindow(hwnd);
-            NativeWindow.keybd_event(NativeWindow.VK_SPACE, 0, 0, UIntPtr.Zero);
-            NativeWindow.keybd_event(NativeWindow.VK_SPACE, 0, NativeWindow.KEYEVENTF_KEYUP, UIntPtr.Zero);
-            await Task.Delay(250);
-        }
-    }
-
-    /// <summary>P/Invoke minimal pour redimensionner la fenetre vmconnect.</summary>
-    private static class NativeWindow
-    {
-        public const int SW_MAXIMIZE = 3;
-
-        [DllImport("user32.dll")]
-        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        [DllImport("user32.dll")]
-        public static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
-
-        [DllImport("user32.dll")]
-        public static extern bool SetForegroundWindow(IntPtr hWnd);
-
-        // keybd_event (pas SendInput) : simple, suffisant pour simuler un appui sur
-        // une touche sans modificateur, et cible - comme SendInput l'aurait fait -
-        // la fenetre au premier plan (d'ou SetForegroundWindow juste avant).
-        [DllImport("user32.dll")]
-        public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-        public const byte VK_SPACE = 0x20;
-        public const uint KEYEVENTF_KEYUP = 0x0002;
-
-        [DllImport("user32.dll")]
-        private static extern int GetSystemMetrics(int nIndex);
-
-        private const int SM_CXSCREEN = 0;
-        private const int SM_CYSCREEN = 1;
-
-        public static (int X, int Y) GetCenteredPosition(int width, int height)
-        {
-            var screenW = GetSystemMetrics(SM_CXSCREEN);
-            var screenH = GetSystemMetrics(SM_CYSCREEN);
-            var x = Math.Max(0, (screenW - width) / 2);
-            var y = Math.Max(0, (screenH - height) / 2);
-            return (x, y);
-        }
-    }
 
     public Task<VirtualMachine?> StopVmAsync(string name) =>
         RunForVmAsync("Stop-NovaVm.ps1", $"Arret de '{name}'", ("Name", name), ("Force", "false"));

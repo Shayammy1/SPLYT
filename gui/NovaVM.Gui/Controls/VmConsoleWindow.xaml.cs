@@ -38,6 +38,11 @@ public partial class VmConsoleWindow : FluentWindow
         Console.VmName = vm.Name;
         Console.IsConsoleEnabled = true;
 
+        // ISO encore premier peripherique de demarrage : il faut passer l'invite
+        // "Press any key to boot from CD or DVD...", qui ne dure que deux ou trois
+        // secondes. On martele Espace des l'ouverture, sans bloquer l'affichage.
+        if (vm.NeedsBootKeyPress) _ = Console.SendBootKeyBurstAsync();
+
         // Echap et F11 : les deux reflexes attendus pour sortir/entrer en plein
         // ecran, sans avoir a retrouver un bouton masque.
         PreviewKeyDown += OnPreviewKeyDown;
