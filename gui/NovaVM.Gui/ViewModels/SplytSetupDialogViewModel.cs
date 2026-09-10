@@ -206,6 +206,7 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
             // --- 7. Reglages de qualite + appariement automatique ---
             // Sans interet si Sunshine ne s'est pas installe : on ne va pas configurer
             // puis apparier quelque chose qui n'existe pas.
+            var paired = false;
             if (sunshine is not null)
             {
                 Advance(++step, "Splyt_Step_Streaming");
@@ -214,12 +215,13 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
                 report.AppendLine(streaming is not null
                     ? streaming.Message ?? Loc.Get("Splyt_Report_StreamingOk")
                     : Loc.Get("Splyt_Report_StreamingFailed", streamingError));
+                paired = streaming?.Paired == true;
             }
 
             if (RememberCredentials) VmCredentialStore.Save(Vm.Name, Username, password);
             else VmCredentialStore.Delete(Vm.Name);
 
-            Finish(report);
+            Finish(report, paired);
         });
     }
 
@@ -236,10 +238,17 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => { CurrentStep = text; });
     }
 
-    private void Finish(StringBuilder report)
+    /// <summary>Cloture le rapport. Le rappel d'appariement manuel n'est ajoute que
+    /// si l'appariement automatique n'a PAS abouti : l'afficher malgre un
+    /// appariement reussi envoyait l'utilisateur refaire a la main une etape deja
+    /// faite, et laissait croire a un echec.</summary>
+    private void Finish(StringBuilder report, bool paired = false)
     {
-        report.AppendLine();
-        report.Append(Loc.Get("Splyt_Report_PairingReminder"));
+        if (!paired)
+        {
+            report.AppendLine();
+            report.Append(Loc.Get("Splyt_Report_PairingReminder"));
+        }
 
         ProgressPercent = 100;
         CurrentStep = null;

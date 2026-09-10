@@ -20,8 +20,12 @@
        l'humain de la boucle :
          - SPLYT tire un PIN au hasard ;
          - "moonlight pair <ip> --pin <pin>" declenche la demande cote client ;
-         - GET /api/pin cote Sunshine donne le pairing_id de la demande en attente ;
-         - POST /api/pin le valide avec le meme PIN.
+         - POST /api/pin cote Sunshine la valide avec le meme PIN.
+
+       Deux generations d'API cohabitent chez les utilisateurs et se distinguent
+       par la presence d'un GET sur /api/pin (voir le detail dans le corps du
+       script) : jusqu'a Sunshine 2026.5 le POST se suffit a lui-meme, depuis
+       2026.9 il faut d'abord lire le "pairing_id" de la demande en attente.
 
     La QUALITE elle-meme (debit, frequence, resolution, 4:4:4) ne se regle pas ici :
     c'est le client qui la demande a chaque session. Voir Start-NovaVmMoonlight.ps1.
@@ -70,15 +74,60 @@ function Invoke-NovaSunshineApi {
     # attendu, et la connexion ne quitte pas la machine.
     $config = "user = `"${User}:${Password}`"`ninsecure`n"
 
+    # Piege du BOM, verifie empiriquement et tres couteux a diagnostiquer.
+    #
+    # .NET cree l'entree standard d'un processus enfant avec l'encodage de la
+    # console ([Console]::InputEncoding) et met AutoFlush a vrai : le simple fait
+    # de creer le processus ECRIT DEJA le prefixe de cet encodage dans le tube.
+    # Quand la console est en UTF-8 (option "Beta : utiliser UTF-8" de Windows 11,
+    # ou terminal qui a fait chcp 65001), ce prefixe est un BOM. curl le prend
+    # alors pour le debut du nom de l'option et rejette tout le fichier :
+    #   config file option 'user' is unknown
+    #   option -K: found an unknown config option
+    # Plus aucun appel a l'API Sunshine ne passe, et le message n'evoque ni
+    # encodage ni BOM. Ni $OutputEncoding, ni un StreamWriter en UTF-8 sans BOM
+    # n'y changent quoi que ce soit (teste) : le prefixe est ecrit avant nous.
+    # Seul le basculement de l'encodage de la console avant la creation du
+    # processus l'empeche - on le restaure aussitot.
+    $previousInputEncoding = $null
     try {
-        $raw = ($config | & curl.exe @arguments 2>&1 | Out-String)
+        $previousInputEncoding = [Console]::InputEncoding
+        [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+    } catch {
+        # Pas de console attachee : rien a corriger, l'encodage par defaut ne
+        # comporte alors pas de prefixe.
+        $previousInputEncoding = $null
+    }
+
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = "curl.exe"
+    $startInfo.Arguments = ($arguments | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join " "
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+
+    try {
+        $curl = [System.Diagnostics.Process]::Start($startInfo)
+        $curl.StandardInput.Write($config)
+        $curl.StandardInput.Close()
+
+        $raw = $curl.StandardOutput.ReadToEnd()
+        $stdErr = $curl.StandardError.ReadToEnd()
+        $curl.WaitForExit()
     } catch {
         return [pscustomobject]@{ HttpCode = 0; Body = $null; Error = $_.Exception.Message }
+    } finally {
+        if ($previousInputEncoding) {
+            try { [Console]::InputEncoding = $previousInputEncoding } catch { }
+        }
     }
 
     $marker = $raw.LastIndexOf("|NOVAHTTP=")
     if ($marker -lt 0) {
-        return [pscustomobject]@{ HttpCode = 0; Body = $raw; Error = "Reponse illisible de curl : $raw" }
+        $detail = if ($stdErr.Trim()) { $stdErr.Trim() } else { $raw }
+        return [pscustomobject]@{ HttpCode = 0; Body = $raw; Error = "Reponse illisible de curl : $detail" }
     }
 
     $code = 0
@@ -88,6 +137,65 @@ function Invoke-NovaSunshineApi {
         Body     = $raw.Substring(0, $marker)
         Error    = if ($code -ge 200 -and $code -lt 300) { $null } else { "code HTTP $code" }
     }
+}
+
+# Moonlight est-il DEJA appaire avec cet hote ?
+#
+# On le demande a Moonlight lui-meme plutot qu'a Sunshine : c'est le client qui
+# detient le certificat, et c'est lui qui refusera de reappairer. "list" rend 0
+# quand l'hote est appaire et joignable, -1 sinon (verifie dans les deux etats).
+# On se fie a ce code et non au texte affiche : Moonlight est traduit, son message
+# depend de la langue de Windows. Sa sortie standard, elle, est vide dans les deux
+# cas - elle ne peut donc pas servir de critere.
+function Test-NovaMoonlightPaired {
+    param(
+        [Parameter(Mandatory)][string]$MoonlightPath,
+        [Parameter(Mandatory)][string]$HostAddress
+    )
+
+    $outFile = Join-Path $env:TEMP "splyt-moonlight-list.out"
+    $errFile = Join-Path $env:TEMP "splyt-moonlight-list.err"
+    try {
+        # Sorties dirigees vers des FICHIERS et non des tubes : un tube que
+        # personne ne vide bloquerait Moonlight des qu'il le remplit, et on ne
+        # peut pas le lire tout en surveillant un delai d'attente.
+        $process = Start-Process -FilePath $MoonlightPath -ArgumentList "list", $HostAddress `
+            -PassThru -WindowStyle Hidden -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+
+        # Lire .Handle tout de suite : sans cet acces, PowerShell ne conserve pas
+        # le descripteur du processus et .ExitCode revient VIDE apres la fin
+        # (piege verifie - c'est ce qui rendait le code de sortie inexploitable).
+        $null = $process.Handle
+
+        if (-not $process.WaitForExit(30000)) {
+            try { $process.Kill() } catch { }
+            return $false
+        }
+        return ($process.ExitCode -eq 0)
+    } catch {
+        return $false
+    } finally {
+        Remove-Item -LiteralPath $outFile, $errFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Derniere ligne utile de la sortie de Moonlight, pour expliquer un echec.
+# Les avertissements Qt/SDL sont ecartes : ils sont presents a chaque lancement,
+# meme quand tout se passe bien, et masqueraient la vraie cause.
+function Get-NovaMoonlightFailureReason {
+    param([string]$OutFile, [string]$ErrorFile)
+
+    $lines = @()
+    foreach ($file in @($ErrorFile, $OutFile)) {
+        if ($file -and (Test-Path -LiteralPath $file)) {
+            $lines += @(Get-Content -LiteralPath $file -ErrorAction SilentlyContinue)
+        }
+    }
+    $useful = $lines | Where-Object {
+        $_ -and $_.Trim() -and $_ -notmatch 'Qt (Warning|Info)|SDL Info|DPI_AWARENESS|doc\.qt\.io'
+    }
+    if (-not $useful) { return $null }
+    return ($useful | Select-Object -Last 1).Trim()
 }
 
 Invoke-NovaAction {
@@ -220,44 +328,110 @@ Invoke-NovaAction {
     }
 
     Write-NovaProgress "Appariement de Moonlight avec Sunshine"
-    $pin = "{0:D4}" -f (Get-Random -Minimum 0 -Maximum 10000)
 
-    # Moonlight reste en attente pendant l'echange : on le lance sans bloquer,
-    # puis on valide sa demande cote Sunshine.
-    $pairProcess = Start-Process -FilePath $moonlightPath -ArgumentList "pair", $vmIp, "--pin", $pin `
-        -PassThru -WindowStyle Hidden
-
-    $paired = $false
+    # Deja appaire ? Moonlight refuse de reappairer un hote qu'il connait deja :
+    # sa commande "pair" rend la main tout de suite sans jamais contacter
+    # Sunshine, et la boucle ci-dessous attendrait une demande qui n'arriverait
+    # jamais - on annoncerait un echec sur une configuration pourtant complete
+    # (typiquement en relancant la configuration automatique). L'etat est lu par
+    # "moonlight list" et non dans un message d'erreur : Moonlight est traduit,
+    # son texte depend de la langue de Windows.
+    $paired = Test-NovaMoonlightPaired -MoonlightPath $moonlightPath -HostAddress $vmIp
+    $alreadyPaired = $paired
     $pairError = $null
-    for ($attempt = 0; $attempt -lt 30 -and -not $paired; $attempt++) {
-        Start-Sleep -Seconds 2
-        $pendingResponse = Invoke-NovaSunshineApi -Url "$baseUrl/api/pin" -User $SunshineUser -Password $sunshinePassword
-        if ($pendingResponse.HttpCode -ne 200 -or -not $pendingResponse.Body) {
-            $pairError = $pendingResponse.Error
-            continue
+
+    if (-not $paired) {
+        $pin = "{0:D4}" -f (Get-Random -Minimum 0 -Maximum 10000)
+
+        # Moonlight reste en attente pendant l'echange : on le lance sans bloquer,
+        # puis on valide sa demande cote Sunshine. Sa sortie est capturee pour
+        # pouvoir la citer si l'appariement echoue - sans elle, une panne cote
+        # client (hote injoignable, port bloque) est indiscernable d'une panne
+        # cote serveur.
+        $pairOutFile = Join-Path $env:TEMP "splyt-moonlight-pair.out"
+        $pairErrFile = Join-Path $env:TEMP "splyt-moonlight-pair.err"
+        $pairProcess = Start-Process -FilePath $moonlightPath -ArgumentList "pair", $vmIp, "--pin", $pin `
+            -PassThru -WindowStyle Hidden -RedirectStandardOutput $pairOutFile -RedirectStandardError $pairErrFile
+
+        for ($attempt = 0; $attempt -lt 30 -and -not $paired; $attempt++) {
+            Start-Sleep -Seconds 2
+
+            # Deux generations d'API coexistent chez les utilisateurs, et elles ne
+            # s'appellent pas de la meme facon. La difference se lit sur GET
+            # /api/pin (verifie empiriquement : 404 = route absente, exactement
+            # comme une URL inventee ; 401 = route presente mais authentifiee) :
+            #
+            #   - jusqu'a 2026.5 : POST { pin, name } suffit. Sunshine valide la
+            #     seule demande en attente, aucun identifiant n'est a fournir -
+            #     et il n'existe aucun moyen d'en obtenir un.
+            #   - depuis 2026.9 : plusieurs demandes peuvent etre en attente. Il
+            #     faut GET /api/pin pour lire leur "pairing_id", puis le renvoyer
+            #     dans POST { pairing_id, pin, name }.
+            #
+            # Ne faire que le second cas renvoyait 404 sur toutes les versions
+            # anterieures, donc "l'appariement automatique n'a pas abouti" sans
+            # qu'aucune demande n'ait jamais ete envoyee.
+            $payload = @{ pin = $pin; name = "SPLYT" }
+
+            $pendingResponse = Invoke-NovaSunshineApi -Url "$baseUrl/api/pin" -User $SunshineUser -Password $sunshinePassword
+            if ($pendingResponse.HttpCode -eq 200) {
+                # L'identifiant fait exactement 32 caracteres hexadecimaux (Sunshine
+                # le valide ainsi). On le cherche tel quel dans la reponse brute
+                # plutot que de supposer un nom de champ.
+                $match = [regex]::Match($pendingResponse.Body, '\b[0-9a-fA-F]{32}\b')
+                if (-not $match.Success) {
+                    # Moonlight n'a pas encore depose sa demande.
+                    $pairError = "aucune demande d'appariement en attente cote Sunshine"
+                    continue
+                }
+                $payload["pairing_id"] = $match.Value
+            } elseif ($pendingResponse.HttpCode -ne 404) {
+                $pairError = $pendingResponse.Error
+                continue
+            }
+
+            $postResponse = Invoke-NovaSunshineApi -Url "$baseUrl/api/pin" -User $SunshineUser `
+                -Password $sunshinePassword -Method "POST" -JsonBody ($payload | ConvertTo-Json -Compress)
+
+            if ($postResponse.HttpCode -ge 200 -and $postResponse.HttpCode -lt 300) {
+                # Sunshine repond 200 meme quand il REFUSE l'appariement (PIN
+                # errone, aucune demande en attente) : c'est le champ "status" qui
+                # fait foi, pas le code HTTP. Se fier au seul code annoncait un
+                # succes alors que rien n'etait appaire.
+                if ($postResponse.Body -match '"status"\s*:\s*"?true"?') {
+                    $paired = $true
+                } else {
+                    $pairError = "Sunshine a refuse l'appariement"
+                }
+            } else {
+                $pairError = "$($postResponse.Error) - $($postResponse.Body)"
+            }
+
+            # Moonlight a rendu la main sans que rien n'aboutisse : inutile
+            # d'attendre les 60 secondes, sa sortie dit pourquoi.
+            if (-not $paired -and $pairProcess.HasExited) {
+                $moonlightSays = Get-NovaMoonlightFailureReason -OutFile $pairOutFile -ErrorFile $pairErrFile
+                if ($moonlightSays) { $pairError = $moonlightSays }
+                break
+            }
         }
 
-        # L'identifiant d'appariement fait exactement 32 caracteres hexadecimaux
-        # (verifie dans le source de Sunshine, qui le valide ainsi). On le cherche
-        # tel quel dans la reponse brute plutot que de supposer un nom de champ :
-        # la forme de cette reponse a change selon les versions.
-        $pairingId = $null
-        $match = [regex]::Match($pendingResponse.Body, '\b[0-9a-fA-F]{32}\b')
-        if ($match.Success) { $pairingId = $match.Value }
-        if (-not $pairingId) { continue }
-
-        $body = @{ pairing_id = $pairingId; pin = $pin; name = "SPLYT" } | ConvertTo-Json -Compress
-        $postResponse = Invoke-NovaSunshineApi -Url "$baseUrl/api/pin" -User $SunshineUser `
-            -Password $sunshinePassword -Method "POST" -JsonBody $body
-        if ($postResponse.HttpCode -ge 200 -and $postResponse.HttpCode -lt 300) {
-            $paired = $true
-        } else {
-            $pairError = "$($postResponse.Error) - $($postResponse.Body)"
+        # Moonlight est arrete DANS TOUS LES CAS, succes compris.
+        #
+        # "moonlight pair" ne rend pas la main une fois l'appariement accepte : il
+        # reste a surveiller l'hote indefiniment. Or il herite du tube de sortie
+        # standard de ce script (CreateProcess transmet les descripteurs
+        # heritables), donc tant qu'il vit, SPLYT attend la fin d'une sortie qui
+        # ne se fermera jamais : l'action entiere reste bloquee, meme apres un
+        # appariement parfaitement reussi. On lui laisse quelques secondes pour
+        # finir proprement, puis on l'arrete.
+        for ($grace = 0; $grace -lt 5 -and -not $pairProcess.HasExited; $grace++) {
+            Start-Sleep -Seconds 1
         }
-    }
-
-    if (-not $paired -and -not $pairProcess.HasExited) {
-        try { $pairProcess.Kill() } catch { }
+        if (-not $pairProcess.HasExited) {
+            try { $pairProcess.Kill() } catch { }
+        }
+        Remove-Item -LiteralPath $pairOutFile, $pairErrFile -Force -ErrorAction SilentlyContinue
     }
 
     $result = [ordered]@{
@@ -267,7 +441,9 @@ Invoke-NovaAction {
         keysApplied     = $guestOutcome.keysApplied
         paired          = $paired
         pairError       = $pairError
-        message         = if ($paired) {
+        message         = if ($paired -and $alreadyPaired) {
+            "Sunshine configure (codecs HEVC/AV1 autorises). Moonlight etait deja apparie avec cette VM : rien a refaire. Utilisez 'Lancer avec Moonlight' pour demarrer une session."
+        } elseif ($paired) {
             "Sunshine configure (codecs HEVC/AV1 autorises) et apparie automatiquement avec Moonlight : plus aucun code PIN a saisir. Utilisez 'Lancer avec Moonlight' pour demarrer une session."
         } else {
             "Sunshine est configure, mais l'appariement automatique n'a pas abouti$(if ($pairError) { " ($pairError)" }). Vous pouvez apparier manuellement depuis $baseUrl (identifiant : $SunshineUser)."

@@ -148,6 +148,15 @@ public sealed class PowerShellRunner : IPowerShellRunner
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
+            // UTF-8 SANS BOM impose explicitement. Sans cette ligne, l'entree
+            // standard prend l'encodage de la console ; quand SPLYT est lance
+            // depuis un terminal en UTF-8 (chcp 65001, ou l'option "Beta :
+            // utiliser UTF-8" de Windows 11), un BOM est ecrit en tete du flux.
+            // Le script lit alors un nom d'utilisateur commencant par ce caractere
+            // invisible, et PowerShell Direct repond "Les informations
+            // d'identification ne sont pas valides" - un message qui envoie
+            // chercher un probleme de mot de passe totalement imaginaire.
+            StandardInputEncoding = new UTF8Encoding(false),
         };
 
         startInfo.ArgumentList.Add("-NoProfile");
