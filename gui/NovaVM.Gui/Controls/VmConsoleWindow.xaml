@@ -68,7 +68,7 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2" Background="{StaticResource BackgroundBrush}">
+        <Grid x:Name="ConsoleArea" Grid.Row="2" Background="{StaticResource BackgroundBrush}">
             <!-- Centre par WPF : la console fait exactement la taille de la video
                  (voir VmConsoleHost.MeasureOverride), le fond SPLYT occupe le reste
                  quand la fenetre est plus grande - notamment en plein ecran ou la

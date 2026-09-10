@@ -378,7 +378,7 @@ public sealed class VmConsoleHost : HwndHost
 
         public const int SW_MAXIMIZE = 3;
 
-        private const byte VkReturn = 0x0D;
+        private const byte VkEscape = 0x1B;
         private const byte VkControl = 0x11;
         private const byte VkMenu = 0x12; // Alt
         private const byte VkEnd = 0x23;
@@ -600,11 +600,22 @@ public sealed class VmConsoleHost : HwndHost
             return best;
         }
 
-        /// <summary>Valide (touche Entree sur le bouton par defaut) les fenetres de
-        /// premier niveau du processus vmconnect autres que la console deja
-        /// integree. IMPORTANT : n'appeler qu'APRES avoir identifie la console,
-        /// sinon la fenetre principale se fait elle-meme passer pour un dialogue au
-        /// premier cycle et recoit une touche parasite.</summary>
+        /// <summary>Ecarte (touche Echap) les fenetres de premier niveau du
+        /// processus vmconnect autres que la console deja integree.
+        ///
+        /// Echap et NON Entree : la boite "Se connecter a &lt;VM&gt;" propose de
+        /// passer en Session Amelioree (RDP). L'accepter donne une vue RDP qui,
+        /// sur une machine verrouillee ou sans session ouverte, n'affiche qu'un
+        /// fond d'ecran - PAS l'ecran de connexion. Compare a l'image reelle du
+        /// framebuffer de la VM (WMI GetVirtualSystemThumbnailImage) : la VM
+        /// montrait bien son ecran de verrouillage avec l'horloge pendant que la
+        /// console, elle, restait sur un fond nu. La refuser garde la Session
+        /// Basique, c'est-a-dire l'ecran reel de la machine - le seul qui marche
+        /// aussi avant l'installation de Windows (firmware, installeur).
+        ///
+        /// IMPORTANT : n'appeler qu'APRES avoir identifie la console, sinon la
+        /// fenetre principale se fait elle-meme passer pour un dialogue au premier
+        /// cycle et recoit une touche parasite.</summary>
         public static void DismissDialogs(uint processId, IntPtr consoleWindow)
         {
             EnumWindows((hWnd, _) =>
@@ -621,8 +632,8 @@ public sealed class VmConsoleHost : HwndHost
                 if (title.Length == 0) return true;
 
                 SetForegroundWindow(hWnd);
-                keybd_event(VkReturn, 0, 0, IntPtr.Zero);
-                keybd_event(VkReturn, 0, KeyEventFKeyUp, IntPtr.Zero);
+                keybd_event(VkEscape, 0, 0, IntPtr.Zero);
+                keybd_event(VkEscape, 0, KeyEventFKeyUp, IntPtr.Zero);
                 return true;
             }, IntPtr.Zero);
         }

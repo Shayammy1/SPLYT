@@ -69,14 +69,24 @@ public partial class VmConsoleWindow : FluentWindow
 
         if (_isFullScreen || _userResized || video.Width <= 0 || video.Height <= 0) return;
 
-        var chromeHeight = HeaderBar.ActualHeight > 0 ? HeaderBar.ActualHeight : 40;
+        // Chrome deduite de la mise en page reelle (barre de titre + barre d'outils
+        // + bordures) plutot qu'estimee : ne compter que HeaderBar oubliait la barre
+        // de titre, la fenetre etait ~44 px trop courte et le bas de l'ecran de la
+        // VM - notamment ses boutons - tombait hors du cadre.
+        var chromeHeight = ActualHeight > 0 && ConsoleArea.ActualHeight > 0
+            ? ActualHeight - ConsoleArea.ActualHeight
+            : TitleStrip.ActualHeight + HeaderBar.ActualHeight + 16;
+        var chromeWidth = ActualWidth > 0 && ConsoleArea.ActualWidth > 0
+            ? ActualWidth - ConsoleArea.ActualWidth
+            : 16;
+
         var maxWidth = SystemParameters.WorkArea.Width;
         var maxHeight = SystemParameters.WorkArea.Height;
 
         _applyingVideoSize = true;
 
-        Width = Math.Min(video.Width + 2, maxWidth);
-        Height = Math.Min(video.Height + chromeHeight + 2, maxHeight);
+        Width = Math.Min(video.Width + chromeWidth, maxWidth);
+        Height = Math.Min(video.Height + chromeHeight, maxHeight);
 
         // Recentre : agrandir depuis le coin superieur gauche ferait deborder la
         // fenetre de l'ecran sur une VM en haute resolution.
