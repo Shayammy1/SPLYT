@@ -207,6 +207,19 @@ public sealed class VirtualDiskDto
     public string? AttachedVm { get; set; }
 }
 
+public sealed class AutoLogonResultDto
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>Compte qui ouvrira la session, domaine compris.</summary>
+    public string? Account { get; set; }
+
+    /// <summary>Vrai si le mot de passe a bien ete range dans le secret LSA de
+    /// Windows - jamais en clair dans le registre.</summary>
+    public bool SecretStored { get; set; }
+    public string? Message { get; set; }
+}
+
 public sealed class StreamingQualityResultDto
 {
     public string? VmIp { get; set; }

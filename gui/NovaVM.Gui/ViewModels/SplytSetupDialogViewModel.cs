@@ -30,6 +30,7 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     private readonly IReadOnlyList<HostGpu> _hostGpus;
     private string _username = "";
     private bool _rememberCredentials;
+    private bool _enableAutoLogon = true;
     private string? _currentStep;
     private double _progressPercent;
     private string? _resultText;
@@ -62,6 +63,13 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     }
 
     public bool RememberCredentials { get => _rememberCredentials; set => SetProperty(ref _rememberCredentials, value); }
+
+    /// <summary>Ouvre la session Windows de la VM automatiquement au demarrage.
+    /// Active par defaut : sans session ouverte dans l'invite, Windows refuse toute
+    /// modification de l'affichage, donc le streaming ne peut pas basculer sur
+    /// l'ecran virtuel VDD et diffuse un ecran vide. Decocher garde la VM protegee
+    /// par son mot de passe, au prix d'une connexion manuelle avant chaque session.</summary>
+    public bool EnableAutoLogon { get => _enableAutoLogon; set => SetProperty(ref _enableAutoLogon, value); }
 
     /// <summary>Mot de passe recharge depuis le Gestionnaire d'identifiants Windows,
     /// applique une seule fois par la vue (code-behind) : WPF n'expose jamais
@@ -101,7 +109,7 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     /// liste se resynchronise sans attendre le rafraichissement periodique.</summary>
     public event EventHandler? VmChanged;
 
-    private const int TotalSteps = 7;
+    private const int TotalSteps = 8;
 
     private async Task RunAsync()
     {
@@ -206,6 +214,23 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
             // --- 7. Reglages de qualite + appariement automatique ---
             // Sans interet si Sunshine ne s'est pas installe : on ne va pas configurer
             // puis apparier quelque chose qui n'existe pas.
+            // --- 7. Ouverture de session automatique dans la VM ------------------
+            //
+            // Placee AVANT les reglages de streaming pour que le rapport la presente
+            // dans l'ordre ou elle compte : sans session ouverte dans l'invite,
+            // Windows refuse de toucher a l'affichage, donc l'ecran virtuel VDD
+            // n'est ni active ni mis a la resolution demandee - et une VM demarree
+            // "avec Moonlight" diffusait un ecran vide, donc noir.
+            if (EnableAutoLogon)
+            {
+                Advance(++step, "Splyt_Step_AutoLogon");
+                var (autoLogon, autoLogonError) = await _vmService.SetAutoLogonAsync(
+                    Vm.Name, ResolveUsername(Username), password);
+                report.AppendLine(autoLogon is not null
+                    ? autoLogon.Message ?? Loc.Get("Splyt_Report_AutoLogonOk")
+                    : Loc.Get("Splyt_Report_AutoLogonFailed", autoLogonError));
+            }
+
             var paired = false;
             if (sunshine is not null)
             {

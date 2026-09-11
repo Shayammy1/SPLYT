@@ -63,3 +63,34 @@ restaure lors du changement de topologie.
 Enumerer les modes d'affichage de l'invite par une tache planifiee en session
 interactive : essaye, aucune sortie produite - meme impasse que celle deja
 documentee pour le changement de mode.
+
+---
+
+## Resolution du prerequis "session ouverte" (2026-09-11)
+
+Le prerequis ci-dessus n'etait pas qu'une gene : il rendait NOIR tout demarrage
+"Lancer avec Moonlight" sur une VM arretee. Reproduit puis mesure dans la VM :
+
+    LogonUI : True   explorer : False     <- personne n'est connecte
+    Capture size    : 800x600             <- Sunshine capture le VDD, reste vide
+    Virtual Desktop : 1920x1680           <- l'ecran de connexion est sur l'ecran Hyper-V
+
+Depuis que `output_name` epingle la capture sur le VDD, Sunshine diffuse cet ecran
+virtuel meme quand il ne porte rien, et il ne peut pas y basculer le bureau faute
+de session ouverte.
+
+Corrige par `Set-NovaVmAutoLogon.ps1` : la VM ouvre sa session Windows toute
+seule au demarrage. Le mot de passe va dans le SECRET LSA "DefaultPassword"
+(LsaStorePrivateData), la ou l'outil Autologon de Sysinternals le met, et la
+valeur de registre "DefaultPassword" - qui serait en clair - est explicitement
+supprimee. `DevicePasswordLessBuildVersion = 0` est necessaire sur Windows 11,
+sans quoi l'option "connexion sans mot de passe" bloque l'ouverture automatique.
+
+Verifie sur la VM `test` (compte Microsoft) : redemarrage a froid, session
+ouverte 30 s plus tard sans ecran de connexion, puis "Lancer avec Moonlight" sur
+la VM arretee affiche le bureau complet et applique bien le mode
+(`Virtual Desktop 1920x1080`, un seul ecran).
+
+Contrepartie assumee et affichee dans l'interface : la VM demarre sur son bureau
+sans demander de mot de passe. La case est decochable dans la fenetre "tout
+configurer en un clic".

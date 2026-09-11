@@ -58,6 +58,11 @@
                             <CheckBox Content="{markup:Tr VmList_Credentials_Remember}" IsChecked="{Binding RememberCredentials}"
                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10" />
 
+                            <CheckBox Content="{markup:Tr Splyt_AutoLogon_Option}" IsChecked="{Binding EnableAutoLogon}"
+                                      Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                            <TextBlock Text="{markup:Tr Splyt_AutoLogon_Note}" FontSize="11" TextWrapping="Wrap"
+                                       Margin="0,0,0,10" Foreground="{StaticResource TextMutedBrush}" />
+
                             <TextBlock Text="{markup:Tr VmList_Credentials_StorageNote}" FontSize="11" TextWrapping="Wrap"
                                        Foreground="{StaticResource TextMutedBrush}" />
                         </StackPanel>

@@ -272,6 +272,29 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    /// <summary>Active l'ouverture de session automatique de Windows DANS la VM -
+    /// voir Set-NovaVmAutoLogon.ps1.
+    ///
+    /// Ce n'est pas un confort : tant que personne n'a ouvert de session dans
+    /// l'invite, Windows refuse toute modification de l'affichage, donc Sunshine ne
+    /// peut ni activer l'ecran virtuel VDD ni lui appliquer le mode demande. Une VM
+    /// demarree "avec Moonlight" diffusait alors un ecran virtuel vide, donc noir.</summary>
+    public async Task<(AutoLogonResultDto? Result, string? Error)> SetAutoLogonAsync(
+        string name, string username, string password, bool disable = false)
+    {
+        var result = await _runner.RunWithCredentialAsync(
+            "Set-NovaVmAutoLogon.ps1", username, password,
+            ("Name", name), ("Disable", disable ? "true" : "false"));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Set-NovaVmAutoLogon.ps1",
+            $"Ouverture de session automatique pour '{name}' : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<AutoLogonResultDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     /// <summary>Configure Sunshine pour la meilleure qualite possible et apparie
     /// automatiquement Moonlight avec lui (plus aucun code PIN a saisir) - voir
     /// Set-NovaVmStreamingQuality.ps1. Necessite les identifiants Windows de la VM :
