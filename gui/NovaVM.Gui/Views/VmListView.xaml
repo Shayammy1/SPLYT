@@ -667,7 +667,13 @@
                                            Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,0"
                                            Visibility="{Binding DisplayDiagnosticsSummary, Converter={StaticResource NullToVisibilityConverter}}" />
 
-                                <Expander Header="Virtual Display Driver" Margin="0,24,0,0" Foreground="{StaticResource TextPrimaryBrush}">
+                                <!-- Titre volontairement elargi a la session : les boutons de
+                                     connexion automatique vivent ici, parce que c'est ici que
+                                     les identifiants de la VM sont deja saisis. Un panneau
+                                     nomme seulement "Virtual Display Driver" ne serait jamais
+                                     ouvert par quelqu'un qui cherche pourquoi son streaming
+                                     est noir. -->
+                                <Expander Header="{markup:Tr VmList_Vdd_Header}" Margin="0,24,0,0" Foreground="{StaticResource TextPrimaryBrush}">
                                     <StackPanel Margin="0,16,0,0">
                                         <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,18"
                                                    Foreground="{StaticResource TextSecondaryBrush}">
@@ -704,6 +710,11 @@
                                                     Command="{Binding VddEnableCommand}" Margin="0,0,8,8" />
                                             <Button Content="{markup:Tr VmList_Vdd_Disable}" Style="{StaticResource GhostButtonStyle}"
                                                     Command="{Binding VddDisableCommand}" Margin="0,0,8,8" />
+                                            <Button Content="{markup:Tr VmList_AutoLogon_Enable}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding AutoLogonEnableCommand}" Margin="0,0,8,8"
+                                                    ToolTip="{markup:Tr VmList_AutoLogon_Enable_Tooltip}" />
+                                            <Button Content="{markup:Tr VmList_AutoLogon_Disable}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding AutoLogonDisableCommand}" Margin="0,0,8,8" />
                                         </WrapPanel>
 
                                         <TextBlock Text="{Binding VddResultText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"

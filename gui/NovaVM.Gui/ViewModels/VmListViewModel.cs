@@ -70,6 +70,10 @@ public sealed class VmListViewModel : ViewModelBase
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         VddInstallCommand = new AsyncRelayCommand(VddInstallAsync,
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
+        AutoLogonEnableCommand = new AsyncRelayCommand(() => AutoLogonRunAsync(disable: false),
+            () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
+        AutoLogonDisableCommand = new AsyncRelayCommand(() => AutoLogonRunAsync(disable: true),
+            () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         GamingOptimizePerformanceCommand = new AsyncRelayCommand(() => GamingOptimizeAsync(performance: true, privacy: false),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
         GamingOptimizePrivacyCommand = new AsyncRelayCommand(() => GamingOptimizeAsync(performance: false, privacy: true),
@@ -392,6 +396,10 @@ public sealed class VmListViewModel : ViewModelBase
                 VddEnableCommand.RaiseCanExecuteChanged();
                 VddDisableCommand.RaiseCanExecuteChanged();
                 VddInstallCommand.RaiseCanExecuteChanged();
+                AutoLogonEnableCommand.RaiseCanExecuteChanged();
+                AutoLogonDisableCommand.RaiseCanExecuteChanged();
+        AutoLogonEnableCommand.RaiseCanExecuteChanged();
+        AutoLogonDisableCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -464,6 +472,11 @@ public sealed class VmListViewModel : ViewModelBase
     public AsyncRelayCommand VddEnableCommand { get; }
     public AsyncRelayCommand VddDisableCommand { get; }
     public AsyncRelayCommand VddInstallCommand { get; }
+
+    /// <summary>Ouverture de session automatique dans la VM : le remede direct a
+    /// l'ecran noir du streaming, sans repasser par la configuration complete.</summary>
+    public AsyncRelayCommand AutoLogonEnableCommand { get; }
+    public AsyncRelayCommand AutoLogonDisableCommand { get; }
     public AsyncRelayCommand GamingOptimizePerformanceCommand { get; }
     public AsyncRelayCommand GamingOptimizePrivacyCommand { get; }
     /// <summary>Demarre la VM si besoin puis ouvre Moonlight deja connecte : le
@@ -671,6 +684,18 @@ public sealed class VmListViewModel : ViewModelBase
             GamingInitialPassword = savedPassword;
             GamingRememberCredentials = true;
         }
+
+        // Notification explicite, et APRES le rechargement : la vue recopie ces mots
+        // de passe dans ses PasswordBox (WPF n'expose pas Password comme propriete
+        // de dependance, donc aucune liaison possible). Elle ne peut pas se contenter
+        // d'ecouter SelectedVm : SetProperty notifie AVANT que cette methode ne
+        // s'execute, et la vue lisait donc le mot de passe de la VM PRECEDENTE.
+        // Consequence constatee : apres avoir change de VM, toute action a
+        // identifiants de l'onglet Affichage echouait sur "Les informations
+        // d'identification ne sont pas valides", avec le bon nom d'utilisateur
+        // affiche a cote - de quoi chercher longtemps.
+        OnPropertyChanged(nameof(VddInitialPassword));
+        OnPropertyChanged(nameof(GamingInitialPassword));
     }
 
     /// <summary>Demarre la VM puis ouvre SA console, celle de SPLYT. C'est ici et
@@ -964,6 +989,39 @@ public sealed class VmListViewModel : ViewModelBase
         }
 
         NvidiaPatchResultText = result.Message;
+    }
+
+    /// <summary>Active/desactive l'ouverture de session automatique de la VM depuis
+    /// l'onglet Affichage.
+    ///
+    /// Pourquoi ce bouton existe en plus de la case de la configuration en un clic :
+    /// sans session ouverte dans l'invite, Windows refuse de basculer l'affichage
+    /// sur l'ecran virtuel et le streaming reste noir. La seule facon de corriger ca
+    /// etait de relancer TOUTE la configuration en un clic - plusieurs minutes, un
+    /// redemarrage de la VM et une recopie du pilote graphique - pour une valeur de
+    /// registre. Ceux qui tombaient sur l'ecran noir n'avaient donc aucun remede
+    /// proportionne. Reutilise les identifiants deja saisis pour le VDD.</summary>
+    private async Task AutoLogonRunAsync(bool disable)
+    {
+        if (SelectedVm is null) return;
+        var password = VddGetPassword?.Invoke() ?? "";
+        if (string.IsNullOrEmpty(password))
+        {
+            VddResultText = Loc.Get("Common_PasswordRequired");
+            return;
+        }
+
+        var (result, error) = await _vmService.SetAutoLogonAsync(
+            SelectedVm.Name, ResolveVddUsername(VddUsername), password, disable);
+
+        if (result is null)
+        {
+            VddResultText = error ?? Loc.Get("Vm_AutoLogonFailed");
+            return;
+        }
+
+        if (VddRememberCredentials) VmCredentialStore.Save(SelectedVm.Name, VddUsername, password);
+        VddResultText = result.Message;
     }
 
     private async Task VddRunAsync(bool disable = false, bool enable = false)

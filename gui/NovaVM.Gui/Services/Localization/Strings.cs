@@ -174,6 +174,10 @@ internal static class Strings
         ["VmList_Vdd_InstallAuto"] = "Installer VDD automatiquement",
         ["VmList_Vdd_InstallAuto_Tooltip"] = "Telecharge et installe silencieusement le pilote VDD dans la VM (methode officielle du projet, certificat de confiance importe automatiquement - pas besoin du Mode test). Sans effet si deja installe.",
         ["VmList_Vdd_Enable"] = "Activer VDD",
+        ["VmList_Vdd_Header"] = "Ecran virtuel VDD et session de la VM",
+        ["VmList_AutoLogon_Enable"] = "Connexion auto : activer",
+        ["VmList_AutoLogon_Enable_Tooltip"] = "Fait ouvrir a la VM sa session Windows toute seule au demarrage. Sans session ouverte, Windows refuse de basculer l'affichage sur l'ecran virtuel et le streaming reste noir. Contrepartie : la VM demarre sur son bureau sans demander de mot de passe.",
+        ["VmList_AutoLogon_Disable"] = "Connexion auto : desactiver",
         ["VmList_Vdd_Disable"] = "Desactiver VDD",
 
         // --- Communs (dialogues) ---
@@ -274,6 +278,7 @@ internal static class Strings
         ["Vm_DriverInstallSummary"] = "{0}\nHostDriverStore : {1}",
         ["Vm_NvidiaPatchInProgress"] = "Patch en cours (peut prendre plusieurs minutes, et telecharger des outils la premiere fois)...",
         ["Vm_NvidiaPatchFailed"] = "Le patch du pilote NVIDIA a echoue.",
+        ["Vm_AutoLogonFailed"] = "L'activation de l'ouverture de session automatique a echoue.",
         ["Vm_VddDiagnosticFailed"] = "Le diagnostic VDD a echoue.",
         ["Vm_VddInstallInProgress"] = "Installation de VDD en cours (telechargement + installation du pilote)... cela peut prendre une minute.",
         ["Vm_VddInstallFailed"] = "L'installation automatique de VDD a echoue.",
@@ -484,6 +489,10 @@ internal static class Strings
         ["VmList_Vdd_InstallAuto"] = "Install VDD automatically",
         ["VmList_Vdd_InstallAuto_Tooltip"] = "Silently downloads and installs the VDD driver in the VM (the project's official method, trusted certificate imported automatically - no Test Mode needed). No effect if already installed.",
         ["VmList_Vdd_Enable"] = "Enable VDD",
+        ["VmList_Vdd_Header"] = "VDD virtual display and VM session",
+        ["VmList_AutoLogon_Enable"] = "Auto sign-in: enable",
+        ["VmList_AutoLogon_Enable_Tooltip"] = "Makes the VM sign in to Windows by itself at boot. Without a signed-in session, Windows refuses to move the display to the virtual screen and the stream stays black. Trade-off: the VM boots to its desktop without asking for a password.",
+        ["VmList_AutoLogon_Disable"] = "Auto sign-in: disable",
         ["VmList_Vdd_Disable"] = "Disable VDD",
 
         // --- Common (dialogs) ---
@@ -584,6 +593,7 @@ internal static class Strings
         ["Vm_DriverInstallSummary"] = "{0}\nHostDriverStore: {1}",
         ["Vm_NvidiaPatchInProgress"] = "Patching in progress (can take several minutes, and download tools the first time)...",
         ["Vm_NvidiaPatchFailed"] = "The NVIDIA driver patch failed.",
+        ["Vm_AutoLogonFailed"] = "Enabling automatic sign-in failed.",
         ["Vm_VddDiagnosticFailed"] = "VDD diagnostics failed.",
         ["Vm_VddInstallInProgress"] = "Installing VDD (downloading + installing the driver)... this can take a minute.",
         ["Vm_VddInstallFailed"] = "Automatic VDD installation failed.",

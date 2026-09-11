@@ -48,9 +48,19 @@ public partial class VmListView : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(VmListViewModel.SelectedVm) && DataContext is VmListViewModel viewModel)
+        if (DataContext is not VmListViewModel viewModel) return;
+
+        // On ecoute les mots de passe eux-memes, et NON SelectedVm : le ViewModel
+        // notifie le changement de selection AVANT d'avoir recharge les identifiants
+        // de la nouvelle VM. Se brancher sur SelectedVm recopiait donc le mot de
+        // passe de la VM precedente, et toute action a identifiants echouait ensuite
+        // sur "Les informations d'identification ne sont pas valides".
+        if (e.PropertyName == nameof(VmListViewModel.VddInitialPassword))
         {
             VddPasswordInput.Password = viewModel.VddInitialPassword ?? "";
+        }
+        else if (e.PropertyName == nameof(VmListViewModel.GamingInitialPassword))
+        {
             GamingPasswordInput.Password = viewModel.GamingInitialPassword ?? "";
         }
     }
