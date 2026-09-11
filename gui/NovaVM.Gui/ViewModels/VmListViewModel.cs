@@ -870,6 +870,11 @@ public sealed class VmListViewModel : ViewModelBase
         {
             lines.Add($"Partition VRAM (echelle Hyper-V) : min {diag.AdapterMinPartitionVRAM} / max {diag.AdapterMaxPartitionVRAM} / optimal {diag.AdapterOptimalPartitionVRAM}");
         }
+        if (!string.IsNullOrWhiteSpace(diag.CopiedGpuDriverVersion))
+        {
+            lines.Add($"Pilote copie dans la VM : {diag.CopiedGpuDriverVersion}"
+                + (diag.GpuDriverOutOfDate ? " - PERIME, relancez l'installation du pilote" : " (a jour)"));
+        }
         if (!string.IsNullOrWhiteSpace(diag.IssuesText))
         {
             lines.Add($"Problemes detectes : {diag.IssuesText}");

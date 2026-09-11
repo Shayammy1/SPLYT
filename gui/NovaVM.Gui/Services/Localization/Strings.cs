@@ -157,8 +157,8 @@ internal static class Strings
         ["VmList_Gpu_InstallDriver"] = "Installer le pilote",
         ["VmList_Gpu_InstallDriver_Tooltip"] = "Copie hors-ligne le pilote du GPU hote dans le disque de la VM (DISM). Necessite une elevation (invite administrateur) et que la VM soit eteinte.",
 
-        ["VmList_Nvidia_Header"] = "Bidouille NVIDIA (non officielle)",
-        ["VmList_Nvidia_Warning"] = "NVIDIA bloque volontairement ses GPU GeForce dans les VM. Ceci patche votre pilote pour contourner ce blocage - technique communautaire non officielle, abandonnee depuis 2021 : de bonnes chances d'echouer proprement (message clair) si votre pilote est trop recent. Ne modifie rien si aucun motif ne correspond. Necessite d'avoir deja fait 'Installer le pilote' ci-dessus au moins une fois, et que la VM soit eteinte.",
+        ["VmList_Nvidia_Header"] = "Dernier recours NVIDIA (a n'utiliser que si le GPU ne marche pas)",
+        ["VmList_Nvidia_Warning"] = "Essayez D'ABORD 'Installer le pilote graphique' ci-dessus : sur une carte NVIDIA de bureau, le GPU-P fonctionne normalement par cette voie, sans rien patcher. Ce bouton-ci ne sert que si le GPU reste inutilisable dans la VM apres cette etape. Il patche votre pilote pour contourner un blocage que NVIDIA appliquait aux machines virtuelles - technique communautaire non officielle, abandonnee depuis 2021 et concue pour une restriction que NVIDIA a depuis levee : de bonnes chances d'echouer proprement (message clair) sur un pilote recent. Ne modifie rien si aucun motif ne correspond. La VM doit etre eteinte. Note : les GPU NVIDIA de PORTABLE ne sont pas pris en charge en GPU-P, patch ou pas.",
         ["VmList_Nvidia_InstallerLabel"] = "Installeur du pilote NVIDIA (telecharge depuis nvidia.com - meme version que celle installee sur cet hote)",
         ["VmList_Nvidia_PatchButton"] = "Patcher et installer (bidouille)",
         ["VmList_Nvidia_PatchButton_Tooltip"] = "Peut telecharger plusieurs centaines de Mo (7-Zip, Windows Driver Kit) la premiere fois, et prendre plusieurs minutes. Le disque de la VM sera monte hors-ligne : ne fermez pas SPLYT pendant l'operation.",
@@ -467,8 +467,8 @@ internal static class Strings
         ["VmList_Gpu_InstallDriver"] = "Install driver",
         ["VmList_Gpu_InstallDriver_Tooltip"] = "Copies the host GPU driver into the VM's disk offline (DISM). Requires elevation (administrator prompt) and the VM to be off.",
 
-        ["VmList_Nvidia_Header"] = "NVIDIA hack (unofficial)",
-        ["VmList_Nvidia_Warning"] = "NVIDIA deliberately blocks its GeForce GPUs inside VMs. This patches your driver to bypass that block - an unofficial community technique, abandoned since 2021: a good chance of failing cleanly (clear message) if your driver is too recent. Changes nothing if no pattern matches. Requires having already run 'Install driver' above at least once, and the VM to be off.",
+        ["VmList_Nvidia_Header"] = "NVIDIA last resort (only if the GPU does not work)",
+        ["VmList_Nvidia_Warning"] = "Try 'Install the graphics driver' above FIRST: on a desktop NVIDIA card, GPU-P works through that path, with nothing patched. This button is only for when the GPU is still unusable inside the VM after that step. It patches your driver to bypass a block NVIDIA used to apply to virtual machines - an unofficial community technique, abandoned since 2021 and built for a restriction NVIDIA has since lifted: a good chance of failing cleanly (clear message) on a recent driver. Changes nothing if no pattern matches. The VM must be off. Note: NVIDIA LAPTOP GPUs are not supported by GPU-P, patched or not.",
         ["VmList_Nvidia_InstallerLabel"] = "NVIDIA driver installer (downloaded from nvidia.com - same version as the one installed on this host)",
         ["VmList_Nvidia_PatchButton"] = "Patch and install (hack)",
         ["VmList_Nvidia_PatchButton_Tooltip"] = "May download several hundred MB (7-Zip, Windows Driver Kit) the first time, and take several minutes. The VM's disk will be mounted offline: don't close SPLYT during the operation.",

@@ -66,12 +66,29 @@ Invoke-NovaAction {
         [void]$issues.Add($msg)
     }
 
+    # Derive du pilote : en GPU-P, l'invite execute une COPIE du pilote de l'hote.
+    # Des que l'hote met son pilote a jour, la copie dans la VM devient perimee et
+    # le GPU-P cesse de fonctionner - sans rien qui l'explique cote invite. C'est le
+    # piege le plus courant de cette technologie, au point que les implementations de
+    # reference consacrent un script entier a la remise a niveau. On compare donc la
+    # version actuelle du pilote hote a celle qui a reellement ete copiee.
+    $prefs = Get-NovaVmPreferences -Name $Name
+    $copiedDriverVersion = $prefs.gpuDriverVersion
+    $driverOutOfDate = $false
+    if ($realGpu -and $copiedDriverVersion -and $realGpu.DriverVersion -and
+        $copiedDriverVersion -ne $realGpu.DriverVersion) {
+        $driverOutOfDate = $true
+        [void]$issues.Add("Le pilote de l'hote est passe en $($realGpu.DriverVersion) alors que la VM a recu la version $copiedDriverVersion. En GPU-P, la VM execute une copie du pilote de l'hote : relancez 'Installer le pilote graphique dans la VM' pour la remettre a niveau, sinon le GPU n'y fonctionnera pas.")
+    }
+
     $result = [ordered]@{
         vmName                        = $Name
         vmGeneration                  = $vm.Generation
         generationOk                  = $generationOk
         hostGpuName                   = if ($realGpu) { $realGpu.Name } else { $null }
         hostGpuDriverVersion          = if ($realGpu) { $realGpu.DriverVersion } else { $null }
+        copiedGpuDriverVersion        = $copiedDriverVersion
+        gpuDriverOutOfDate            = $driverOutOfDate
         hostGpuCompatible             = ($hostGpuCompatible -and $isHostGpuActuallyPartitionable)
         hostGpuError                  = $hostGpuError
         adapterAttached               = $adapterAttached

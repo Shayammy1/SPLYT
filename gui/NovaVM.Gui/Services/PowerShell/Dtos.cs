@@ -59,6 +59,13 @@ public sealed class GpuDiagnosticsDto
     public bool GenerationOk { get; set; }
     public string? HostGpuName { get; set; }
     public string? HostGpuDriverVersion { get; set; }
+
+    /// <summary>Version du pilote de l'hote au moment ou il a ete copie dans la VM.
+    /// En GPU-P l'invite execute une COPIE du pilote hote : des que l'hote met le
+    /// sien a jour, la copie devient perimee et le GPU cesse de fonctionner dans la
+    /// VM sans rien qui l'explique de l'interieur.</summary>
+    public string? CopiedGpuDriverVersion { get; set; }
+    public bool GpuDriverOutOfDate { get; set; }
     public bool HostGpuCompatible { get; set; }
     public string? HostGpuError { get; set; }
     public bool AdapterAttached { get; set; }

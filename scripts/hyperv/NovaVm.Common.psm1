@@ -251,7 +251,7 @@ function Get-NovaStreamBitrateKbps {
 function Get-NovaVmPreferences {
     param([Parameter(Mandatory)][string]$Name)
 
-    $default = [ordered]@{ name = $Name; gpuName = $null; gpuVramMb = 0; resolution = "1920x1080"; hz = 60; osInstalled = $false }
+    $default = [ordered]@{ name = $Name; gpuName = $null; gpuVramMb = 0; resolution = "1920x1080"; hz = 60; osInstalled = $false; gpuDriverVersion = $null }
     $mutex = New-Object System.Threading.Mutex($false, "Global\NovaVM_PreferencesStore")
     try {
         [void]$mutex.WaitOne(5000)
@@ -287,7 +287,10 @@ function Save-NovaVmPreferences {
         [int]$Hz = 60,
         # "true"/"false" ; non passe = inchange (voir la remarque sur les chaines
         # booleennes dans les autres scripts).
-        [string]$OsInstalled = ""
+        [string]$OsInstalled = "",
+        # Version du pilote graphique de l'hote au moment ou il a ete copie dans la
+        # VM : sert a detecter la derive apres une mise a jour du pilote hote.
+        [string]$GpuDriverVersion = ""
     )
     $mutex = New-Object System.Threading.Mutex($false, "Global\NovaVM_PreferencesStore")
     try {
@@ -315,6 +318,7 @@ function Save-NovaVmPreferences {
         $gpuVramMbValue  = if ($PSBoundParameters.ContainsKey('GpuVramMb'))  { $GpuVramMb }  elseif ($existing) { $existing.gpuVramMb }  else { 0 }
         $resolutionValue = if ($PSBoundParameters.ContainsKey('Resolution')) { $Resolution } elseif ($existing) { $existing.resolution } else { "1920x1080" }
         $hzValue         = if ($PSBoundParameters.ContainsKey('Hz'))         { $Hz }         elseif ($existing) { $existing.hz }         else { 60 }
+        $gpuDriverVersionValue = if ($PSBoundParameters.ContainsKey('GpuDriverVersion')) { $GpuDriverVersion } elseif ($existing) { $existing.gpuDriverVersion } else { $null }
 
         $osInstalledValue = if ($OsInstalled -ne "") {
             ($OsInstalled -eq "true")
@@ -331,6 +335,7 @@ function Save-NovaVmPreferences {
             resolution  = $resolutionValue
             hz          = $hzValue
             osInstalled = $osInstalledValue
+            gpuDriverVersion = $gpuDriverVersionValue
         }
 
         $updated = New-Object System.Collections.ArrayList

@@ -59,7 +59,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public bool LanguageChanged { get => _languageChanged; private set => SetProperty(ref _languageChanged, value); }
 
-    public string AppVersion => "SPLYT 0.9.2-prototype";
+    public string AppVersion => "SPLYT 0.9.3-prototype";
 
     public AsyncRelayCommand RefreshDiagnosticsCommand { get; }
     public RelayCommand RestartNowCommand { get; }
