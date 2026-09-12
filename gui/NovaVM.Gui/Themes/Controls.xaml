@@ -139,7 +139,11 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-        <Setter Property="Margin" Value="0,0,8,0" />
+        <!-- Aucune marge sur l'onglet : le gabarit de TabControl rogne chaque
+             en-tete a sa case SANS la marge, ce qui coupait net le coin arrondi
+             droit - les pastilles paraissaient inachevees. L'espacement entre
+             onglets est deja assure par le gabarit lui-meme. -->
+        <Setter Property="Margin" Value="0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
