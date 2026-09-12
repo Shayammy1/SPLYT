@@ -47,6 +47,16 @@ public partial class VmConsoleWindow : FluentWindow
         // ecran, sans avoir a retrouver un bouton masque.
         PreviewKeyDown += OnPreviewKeyDown;
         SizeChanged += OnUserResized;
+
+        // Deplacer la fenetre vers un ecran a la mise a l'echelle differente change
+        // la traduction pixels -> unites WPF, alors que la video, elle, fait toujours
+        // le meme nombre de pixels. Sans ce rappel, la console gardait la taille
+        // calculee pour l'echelle de l'ecran precedent.
+        DpiChanged += (_, _) =>
+        {
+            _userResized = false;
+            Console.RefreshDpiScale();
+        };
         Closed += (_, _) =>
         {
             UnregisterFullScreenHotkey();

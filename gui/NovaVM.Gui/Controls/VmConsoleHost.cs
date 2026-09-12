@@ -184,6 +184,7 @@ public sealed class VmConsoleHost : HwndHost
     {
         Stop();
         _videoSize = default;
+        _videoSizeDevice = default;
         Start();
     }
 
@@ -336,14 +337,56 @@ public sealed class VmConsoleHost : HwndHost
     /// petite ne reduit pas l'image, elle la ROGNE.</summary>
     public event EventHandler<Size>? VideoSizeChanged;
 
+    /// <summary>Taille de la video en PIXELS, telle que Win32 la rapporte. Conservee
+    /// telle quelle, separement de la version en unites WPF : les deux mondes ne
+    /// parlent pas la meme langue (voir ApplyVideoSize).</summary>
+    private Size _videoSizeDevice;
+
     private void NotifyVideoSize(int width, int height)
     {
-        if (Math.Abs(_videoSize.Width - width) < 1 && Math.Abs(_videoSize.Height - height) < 1) return;
+        if (Math.Abs(_videoSizeDevice.Width - width) < 1 && Math.Abs(_videoSizeDevice.Height - height) < 1) return;
 
-        _videoSize = new Size(width, height);
+        _videoSizeDevice = new Size(width, height);
+        ApplyVideoSize();
+    }
+
+    /// <summary>Convertit la taille mesuree en pixels vers les unites de WPF, puis la
+    /// publie.
+    ///
+    /// C'est LA correction de la mise a l'echelle. GetWindowRect rend des pixels
+    /// physiques ; WPF, lui, compte en unites independantes de la resolution. A
+    /// 100 % les deux coincident, et c'est pourquoi le defaut ne se voyait pas ici.
+    /// A 125 % - le reglage par defaut de Windows sur beaucoup d'ecrans - une video
+    /// de 1920 pixels etait reclamee comme 1920 unites WPF, soit 2400 pixels : la
+    /// fenetre de console s'ouvrait un quart trop grande et l'image tombait a cote.
+    ///
+    /// Le rapport est lu sur la fenetre elle-meme (TransformFromDevice) plutot que
+    /// dans un reglage systeme : il est ainsi juste par ecran, et suit la fenetre
+    /// quand elle passe sur un ecran a l'echelle differente.</summary>
+    private void ApplyVideoSize()
+    {
+        if (_videoSizeDevice.Width <= 0 || _videoSizeDevice.Height <= 0) return;
+
+        var scale = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice;
+        var videoSize = scale.HasValue
+            ? new Size(_videoSizeDevice.Width * scale.Value.M11, _videoSizeDevice.Height * scale.Value.M22)
+            : _videoSizeDevice;
+
+        if (Math.Abs(_videoSize.Width - videoSize.Width) < 0.5 &&
+            Math.Abs(_videoSize.Height - videoSize.Height) < 0.5)
+        {
+            return;
+        }
+
+        _videoSize = videoSize;
         InvalidateMeasure();
         VideoSizeChanged?.Invoke(this, _videoSize);
     }
+
+    /// <summary>A appeler quand la fenetre change d'echelle (deplacement vers un
+    /// ecran a la mise a l'echelle differente) : la taille en pixels n'a pas bouge,
+    /// mais sa traduction en unites WPF, si.</summary>
+    public void RefreshDpiScale() => ApplyVideoSize();
 
     /// <summary>Valide automatiquement les boites que vmconnect ouvre a cote de sa
     /// fenetre principale (typiquement "Se connecter a &lt;VM&gt;", le choix de
