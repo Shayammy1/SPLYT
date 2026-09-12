@@ -139,11 +139,11 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-        <!-- Aucune marge sur l'onglet : le gabarit de TabControl rogne chaque
-             en-tete a sa case SANS la marge, ce qui coupait net le coin arrondi
-             droit - les pastilles paraissaient inachevees. L'espacement entre
-             onglets est deja assure par le gabarit lui-meme. -->
-        <Setter Property="Margin" Value="0" />
+        <!-- L'espacement entre pastilles vit ici. Il n'est sans danger que parce
+             que PillTabControlStyle remplace le gabarit du theme : celui d'origine
+             rognait chaque en-tete a sa case sans la marge, et tranchait net le
+             coin arrondi droit. -->
+        <Setter Property="Margin" Value="0,0,8,0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
@@ -163,6 +163,30 @@
                             <Setter Property="Foreground" Value="#0A0E12" />
                         </Trigger>
                     </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- TabControl a pastilles.
+         Le gabarit est redefini ici plutot que laisse au theme : celui du theme
+         pose ses en-tetes dans un conteneur qui les ROGNE a leur case, ce qui
+         coupait le bord droit de chaque pastille - elles paraissaient
+         inachevees, coins arrondis a gauche et tranchees net a droite. Un simple
+         StackPanel horizontal, sans rognage, les laisse se dessiner en entier. -->
+    <Style x:Key="PillTabControlStyle" TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource PillTabItemStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                                    IsItemsHost="True" ClipToBounds="False" />
+                        <ContentPresenter x:Name="PART_SelectedContentHost"
+                                          ContentSource="SelectedContent" />
+                    </DockPanel>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

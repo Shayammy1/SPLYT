@@ -286,8 +286,7 @@
                                    TextWrapping="Wrap" FontSize="12" />
                     </Border>
 
-                    <TabControl Background="Transparent" BorderThickness="0"
-                                ItemContainerStyle="{StaticResource PillTabItemStyle}">
+                    <TabControl Style="{StaticResource PillTabControlStyle}">
                         <TabItem>
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal">
