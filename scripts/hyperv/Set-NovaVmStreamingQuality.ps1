@@ -270,6 +270,20 @@ Invoke-NovaAction {
             [void]$xml.AppendLine('    </resolution>')
         }
         [void]$xml.AppendLine('  </resolutions>')
+
+        # Section <cursor> : presente dans le modele livre par le pilote, elle
+        # decrit ce que l'ecran virtuel sait faire du pointeur. En son absence le
+        # pilote retombe sur des valeurs par defaut ou le pointeur peut ne jamais
+        # etre transmis a ce qui capture l'ecran - la souris disparait alors du
+        # flux tout en restant fonctionnelle dans la VM. On reprend donc les
+        # valeurs du modele d'origine.
+        [void]$xml.AppendLine('  <cursor>')
+        [void]$xml.AppendLine('    <HardwareCursor>true</HardwareCursor>')
+        [void]$xml.AppendLine('    <CursorMaxX>128</CursorMaxX>')
+        [void]$xml.AppendLine('    <CursorMaxY>128</CursorMaxY>')
+        [void]$xml.AppendLine('    <AlphaCursorSupport>true</AlphaCursorSupport>')
+        [void]$xml.AppendLine('    <XorCursorSupportLevel>2</XorCursorSupportLevel>')
+        [void]$xml.AppendLine('  </cursor>')
         [void]$xml.AppendLine('</vdd_settings>')
 
         # Ecriture SANS BOM. "Set-Content -Encoding UTF8" en ajoute un sous

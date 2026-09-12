@@ -66,6 +66,13 @@ public sealed class VmConsoleHost : HwndHost
     private DispatcherTimer? _timer;
     private Size _videoSize;
 
+    /// <summary>Nombre de relances deja tentees apres la mort de vmconnect. Borne
+    /// pour ne pas boucler indefiniment sur une VM qui refuse toute connexion :
+    /// mieux vaut une console vide qu'une fenetre qui clignote sans fin.</summary>
+    private int _restartAttempts;
+
+    private const int MaxRestartAttempts = 3;
+
     public VmConsoleHost()
     {
         // Sans ca, WPF garde le focus clavier pour lui et rien de ce que tape
@@ -185,6 +192,9 @@ public sealed class VmConsoleHost : HwndHost
         Stop();
         _videoSize = default;
         _videoSizeDevice = default;
+        // Nouvelle console demandee : le compteur de relances repart de zero, il ne
+        // concerne que les morts inattendues de la session precedente.
+        _restartAttempts = 0;
         Start();
     }
 
@@ -329,23 +339,80 @@ public sealed class VmConsoleHost : HwndHost
     private void Stop()
     {
         var process = _vmconnect;
+        var console = _console;
         _vmconnect = null;
         _console = IntPtr.Zero;
 
         if (process is null) return;
-        try
+
+        // Fermeture DEMANDEE avant fermeture IMPOSEE. vmconnect detient la session
+        // console de la VM cote Hyper-V ; abattu net, il ne la rend jamais et la
+        // machine continue de la croire prise - c'est ce qui produit le "une
+        // session est deja ouverte" a la reconnexion suivante. Un WM_CLOSE lui
+        // laisse le temps de se debrancher proprement.
+        //
+        // L'attente se fait a l'ecart du fil de l'interface : la fenetre se ferme
+        // tout de suite, le menage se termine derriere.
+        Native.RequestClose(console);
+        _ = Task.Run(async () =>
         {
-            if (!process.HasExited) process.Kill();
-        }
-        catch
-        {
-            // Le processus a pu disparaitre entre-temps : rien a rattraper.
-        }
-        process.Dispose();
+            try
+            {
+                if (!process.HasExited)
+                {
+                    await process.WaitForExitAsync(new CancellationTokenSource(CloseGrace).Token)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Toujours la apres le delai : il ne se fermera pas tout seul.
+                // A liberer nous-memes, sinon un vmconnect bloque survivrait a la
+                // fenetre qui l'affichait et garderait la session de la VM.
+                try
+                {
+                    if (!process.HasExited) process.Kill();
+                }
+                catch
+                {
+                    // Disparu entre-temps : rien a rattraper.
+                }
+            }
+            catch
+            {
+                // Processus deja parti, ou inaccessible : rien a rattraper.
+            }
+            finally
+            {
+                // Apres seulement : liberer la poignee plus tot empecherait le
+                // dernier recours ci-dessus de s'appliquer.
+                process.Dispose();
+            }
+        });
     }
+
+    /// <summary>Temps laisse a vmconnect pour se fermer de lui-meme avant d'y aller
+    /// de force. Assez long pour qu'il rende la session console de la VM, assez
+    /// court pour qu'un processus bloque ne survive pas a la fenetre.</summary>
+    private static readonly TimeSpan CloseGrace = TimeSpan.FromSeconds(5);
 
     private void Pump()
     {
+        // vmconnect peut disparaitre alors que la fenetre console de SPLYT reste
+        // ouverte : il plante, ou un nettoyage exterieur l'emporte. On se
+        // retrouvait alors devant un cadre vide, sans image ni explication, et le
+        // seul remede etait de fermer puis rouvrir la console a la main. On le
+        // relance donc nous-memes, un nombre borne de fois.
+        if (_vmconnect is not null && _vmconnect.HasExited && IsConsoleEnabled
+            && _restartAttempts < MaxRestartAttempts)
+        {
+            _restartAttempts++;
+            _vmconnect.Dispose();
+            _vmconnect = null;
+            Start();
+            return;
+        }
+
         if (_vmconnect is null || _vmconnect.HasExited) return;
 
         // vmconnect peut detruire sa fenetre et en recreer une (observe pendant le
@@ -650,6 +717,24 @@ public sealed class VmConsoleHost : HwndHost
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>WM_CLOSE : la demande de fermeture normale, celle que produit la
+        /// croix d'une fenetre. Postee et non envoyee, pour ne pas attendre que le
+        /// processus vise ait fini de se fermer.</summary>
+        private const uint WmClose = 0x0010;
+
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>Demande a une fenetre vmconnect de se fermer d'elle-meme.
+        ///
+        /// Une fenetre adoptee par SPLYT n'est plus une fenetre de premier niveau :
+        /// Process.MainWindowHandle ne la voit donc plus et CloseMainWindow() ne
+        /// ferme rien. D'ou le WM_CLOSE poste directement sur la poignee connue.</summary>
+        public static void RequestClose(IntPtr window)
+        {
+            if (window != IntPtr.Zero && IsWindow(window)) PostMessage(window, WmClose, IntPtr.Zero, IntPtr.Zero);
+        }
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern int GetWindowText(IntPtr hWnd, StringBuilder buffer, int max);
