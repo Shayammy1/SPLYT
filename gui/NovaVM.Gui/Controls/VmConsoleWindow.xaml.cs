@@ -94,18 +94,26 @@ public partial class VmConsoleWindow : FluentWindow
             ? ActualWidth - ConsoleArea.ActualWidth
             : 16;
 
-        var maxWidth = SystemParameters.WorkArea.Width;
-        var maxHeight = SystemParameters.WorkArea.Height;
+        // Place disponible sur L'ECRAN OU SE TROUVE CETTE FENETRE, et non sur
+        // l'ecran principal : sur un poste a plusieurs ecrans, ou une fenetre
+        // deplacee, se fier au principal donne une taille qui deborde.
+        //
+        // On s'arrete a 90 % de cette zone. Coller a 100 % mettait le bas de la
+        // fenetre au contact de la barre des taches de l'hote, et l'ecran de la VM
+        // - sa propre barre des taches en premier - semblait passer dessous.
+        var work = Services.ScreenFit.GetWorkArea(this);
+        var maxWidth = work.Width * Services.ScreenFit.UsableFraction;
+        var maxHeight = work.Height * Services.ScreenFit.UsableFraction;
 
         _applyingVideoSize = true;
 
         Width = Math.Min(video.Width + chromeWidth, maxWidth);
         Height = Math.Min(video.Height + chromeHeight, maxHeight);
 
-        // Recentre : agrandir depuis le coin superieur gauche ferait deborder la
-        // fenetre de l'ecran sur une VM en haute resolution.
-        Left = Math.Max(SystemParameters.WorkArea.Left, (maxWidth - Width) / 2);
-        Top = Math.Max(SystemParameters.WorkArea.Top, (maxHeight - Height) / 2);
+        // Recentre sur cet ecran : agrandir depuis le coin superieur gauche ferait
+        // deborder la fenetre sur une VM en haute resolution.
+        Left = work.Left + (work.Width - Width) / 2;
+        Top = work.Top + (work.Height - Height) / 2;
 
         // Rendu a la main apres la passe de mise en page, pour ne pas prendre nos
         // propres redimensionnements pour ceux de l'utilisateur.

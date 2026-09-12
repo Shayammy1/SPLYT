@@ -15,6 +15,17 @@ public partial class MainWindow : FluentWindow
     {
         InitializeComponent();
         PreviewKeyDown += OnPreviewKeyDown;
+
+        // La taille declaree dans le XAML (1320x820) suppose un grand ecran. Sur un
+        // portable de 1366x768, ou sur un ecran fortement mis a l'echelle, la
+        // fenetre depassait et une partie de l'interface se retrouvait hors champ,
+        // sans moyen de la ramener. On la ramene donc a ce que l'ecran peut
+        // reellement afficher.
+        //
+        // Au moment de SourceInitialized et pas dans le constructeur : la fenetre a
+        // alors une poignee, donc un ecran identifiable et un facteur d'echelle
+        // connu. MinWidth/MinHeight du XAML restent respectes par WPF.
+        SourceInitialized += (_, _) => Services.ScreenFit.FitToScreen(this);
     }
 
     /// <summary>Ctrl+K amene le curseur dans la recherche, comme l'indique la
