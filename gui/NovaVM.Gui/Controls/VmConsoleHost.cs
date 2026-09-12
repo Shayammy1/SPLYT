@@ -261,10 +261,47 @@ public sealed class VmConsoleHost : HwndHost
         }
     }
 
+    /// <summary>Ferme les vmconnect fantomes avant d'en lancer un nouveau.
+    ///
+    /// SPLYT adopte la fenetre de vmconnect dans la sienne ; quand SPLYT disparait
+    /// sans l'avoir ferme - plantage, arret depuis le Gestionnaire des taches - la
+    /// fenetre meurt avec son parent mais LE PROCESSUS SURVIT, toujours connecte a
+    /// la VM. Hyper-V n'acceptant qu'une session interactive a la fois sur la
+    /// console, la connexion suivante tombe alors sur "Un autre utilisateur est
+    /// connecte a cette VM", et la console reste bloquee sur ce dialogue.
+    ///
+    /// Critere retenu : un vmconnect SANS AUCUNE FENETRE VISIBLE est par definition
+    /// inatteignable pour l'utilisateur - il ne peut etre qu'un fantome. Une console
+    /// ouverte volontairement depuis le Gestionnaire Hyper-V, elle, a une fenetre et
+    /// n'est donc jamais touchee. Le delai de grace evite d'abattre un vmconnect qui
+    /// vient de demarrer et n'a simplement pas encore cree sa fenetre.</summary>
+    private static void CloseOrphanedConsoles()
+    {
+        foreach (var process in Process.GetProcessesByName("vmconnect"))
+        {
+            try
+            {
+                if ((DateTime.Now - process.StartTime).TotalSeconds < 15) continue;
+                if (Native.HasVisibleWindow((uint)process.Id)) continue;
+                process.Kill();
+            }
+            catch
+            {
+                // Processus deja disparu, ou appartenant a une autre session : on
+                // passe. Ne jamais empecher l'ouverture de la console pour ca.
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+    }
+
     private void Start()
     {
         if (!IsConsoleEnabled || string.IsNullOrWhiteSpace(VmName)) return;
 
+        CloseOrphanedConsoles();
         ForceVmConnectZoomTo100();
 
         try
@@ -606,6 +643,14 @@ public sealed class VmConsoleHost : HwndHost
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern int GetClassName(IntPtr hWnd, StringBuilder buffer, int max);
 
+        /// <summary>BM_CLICK : demande au bouton de se comporter comme s'il avait ete
+        /// clique. Plus sur qu'un vrai clic a la souris, qui dependrait de la position
+        /// du dialogue a l'ecran.</summary>
+        private const uint BmClick = 0x00F5;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern int GetWindowText(IntPtr hWnd, StringBuilder buffer, int max);
 
@@ -744,6 +789,53 @@ public sealed class VmConsoleHost : HwndHost
         /// IMPORTANT : n'appeler qu'APRES avoir identifie la console, sinon la
         /// fenetre principale se fait elle-meme passer pour un dialogue au premier
         /// cycle et recoit une touche parasite.</summary>
+        /// <summary>Vrai si ce processus possede au moins une fenetre de premier
+        /// niveau visible - donc s'il est atteignable par l'utilisateur.</summary>
+        public static bool HasVisibleWindow(uint processId)
+        {
+            var found = false;
+            EnumWindows((hWnd, _) =>
+            {
+                if (!IsWindowVisible(hWnd)) return true;
+                if (GetParent(hWnd) != IntPtr.Zero) return true;
+
+                GetWindowThreadProcessId(hWnd, out var owner);
+                if (owner != processId) return true;
+
+                found = true;
+                return false;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        /// <summary>Reconnait le dialogue de reprise de session et clique son premier
+        /// bouton ("Se connecter"). Retourne faux si ce n'est pas ce dialogue, pour
+        /// que l'appelant retombe sur son traitement habituel.</summary>
+        private static bool TryTakeOverSession(IntPtr dialog)
+        {
+            var isTaskDialog = false;
+            var buttons = new List<IntPtr>();
+
+            EnumChildWindows(dialog, (child, _) =>
+            {
+                var className = new StringBuilder(64);
+                GetClassName(child, className, className.Capacity);
+                var name = className.ToString();
+
+                if (name == "DirectUIHWND") isTaskDialog = true;
+                else if (name == "Button" && IsWindowVisible(child)) buttons.Add(child);
+                return true;
+            }, IntPtr.Zero);
+
+            // Deux boutons exactement : c'est la forme mesuree du dialogue de reprise.
+            // Toute autre forme est laissee au traitement par defaut plutot que de
+            // cliquer au hasard dans un dialogue inconnu.
+            if (!isTaskDialog || buttons.Count != 2) return false;
+
+            SendMessage(buttons[0], BmClick, IntPtr.Zero, IntPtr.Zero);
+            return true;
+        }
+
         public static void DismissDialogs(uint processId, IntPtr consoleWindow)
         {
             EnumWindows((hWnd, _) =>
@@ -758,6 +850,17 @@ public sealed class VmConsoleHost : HwndHost
                 var title = new StringBuilder(256);
                 GetWindowText(hWnd, title, title.Capacity);
                 if (title.Length == 0) return true;
+
+                // Le dialogue "Un autre utilisateur est connecte a cette VM" demande
+                // l'inverse des autres : il faut REPRENDRE la session, pas annuler.
+                // Echap y vaut "Quitter" - on se retrouvait alors connecte a rien,
+                // avec une console figee sur le dialogue.
+                //
+                // On le reconnait a sa NATURE et non a son texte, qui est traduit :
+                // c'est un TaskDialog (un enfant de classe DirectUIHWND) a exactement
+                // deux boutons, la ou le choix de session amelioree est une fenetre
+                // WinForms. Son premier bouton est "Se connecter".
+                if (TryTakeOverSession(hWnd)) return true;
 
                 SetForegroundWindow(hWnd);
                 keybd_event(VkEscape, 0, 0, IntPtr.Zero);
