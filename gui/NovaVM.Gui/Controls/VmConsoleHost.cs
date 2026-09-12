@@ -188,9 +188,84 @@ public sealed class VmConsoleHost : HwndHost
         Start();
     }
 
+    /// <summary>Force le niveau de zoom de vmconnect a 100 % quand l'affichage de
+    /// l'hote est mis a l'echelle.
+    ///
+    /// Par defaut vmconnect est en zoom "Automatique", c'est-a-dire qu'il AGRANDIT
+    /// l'image de la VM du facteur d'echelle de l'hote. Mesure a 125 % : un ecran
+    /// invite de 1920x1080 etait rendu sur 2400x1350 pixels reels. Avec le cadre de
+    /// la fenetre, cela ne tient plus sur un ecran de 1440 pixels de haut, et la
+    /// barre des taches de la VM se retrouvait coupee.
+    ///
+    /// A 100 %, l'image occupe exactement la resolution de la VM - elle tient, et
+    /// elle est nette, puisqu'elle n'est plus reechantillonnee.
+    ///
+    /// Le reglage vit dans le fichier de configuration de vmconnect, lu a son
+    /// demarrage (chemin et forme releves en modifiant le zoom depuis son menu
+    /// Affichage puis en observant ce qu'il ecrit en se fermant). On ne le touche
+    /// que si l'hote est effectivement mis a l'echelle : a 100 %, "Automatique"
+    /// vaut deja 100 et il n'y a aucune raison de modifier un reglage qui appartient
+    /// a l'utilisateur.</summary>
+    private static void ForceVmConnectZoomTo100()
+    {
+        try
+        {
+            if (Native.GetDpiForSystem() <= 96) return;
+
+            var path = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "Microsoft", "Windows", "Hyper-V", "Client", "1.0", "vmconnect.config");
+
+            const string optionsElement =
+                "Microsoft.Virtualization.Client.InteractiveSession.InteractiveSessionConfigurationOptions";
+
+            var document = System.IO.File.Exists(path)
+                ? System.Xml.Linq.XDocument.Load(path)
+                : new System.Xml.Linq.XDocument(new System.Xml.Linq.XElement("configuration"));
+
+            var root = document.Root;
+            if (root is null) return;
+
+            var options = root.Element(optionsElement);
+            if (options is null)
+            {
+                options = new System.Xml.Linq.XElement(optionsElement);
+                root.Add(options);
+            }
+
+            var setting = options.Elements("setting")
+                .FirstOrDefault(e => (string?)e.Attribute("name") == "ZoomLevel");
+            if (setting is null)
+            {
+                setting = new System.Xml.Linq.XElement("setting",
+                    new System.Xml.Linq.XAttribute("name", "ZoomLevel"),
+                    new System.Xml.Linq.XAttribute("type", "System.UInt32"),
+                    new System.Xml.Linq.XElement("value", "100"));
+                options.Add(setting);
+            }
+            else
+            {
+                var value = setting.Element("value");
+                if (value is null) setting.Add(new System.Xml.Linq.XElement("value", "100"));
+                else value.Value = "100";
+            }
+
+            var folder = System.IO.Path.GetDirectoryName(path);
+            if (folder is not null) System.IO.Directory.CreateDirectory(folder);
+            document.Save(path);
+        }
+        catch
+        {
+            // Best-effort : sans ce reglage la console reste utilisable, simplement
+            // agrandie par vmconnect comme avant.
+        }
+    }
+
     private void Start()
     {
         if (!IsConsoleEnabled || string.IsNullOrWhiteSpace(VmName)) return;
+
+        ForceVmConnectZoomTo100();
 
         try
         {
@@ -342,6 +417,10 @@ public sealed class VmConsoleHost : HwndHost
     /// parlent pas la meme langue (voir ApplyVideoSize).</summary>
     private Size _videoSizeDevice;
 
+    /// <summary>Resolution reelle de l'ecran de la VM, en pixels. C'est ce qu'il faut
+    /// afficher a l'utilisateur : la taille en unites WPF ne lui parle pas.</summary>
+    public Size VideoSizeInPixels => _videoSizeDevice;
+
     private void NotifyVideoSize(int width, int height)
     {
         if (Math.Abs(_videoSizeDevice.Width - width) < 1 && Math.Abs(_videoSizeDevice.Height - height) < 1) return;
@@ -371,6 +450,7 @@ public sealed class VmConsoleHost : HwndHost
         var videoSize = scale.HasValue
             ? new Size(_videoSizeDevice.Width * scale.Value.M11, _videoSizeDevice.Height * scale.Value.M22)
             : _videoSizeDevice;
+
 
         if (Math.Abs(_videoSize.Width - videoSize.Width) < 0.5 &&
             Math.Abs(_videoSize.Height - videoSize.Height) < 0.5)
@@ -531,6 +611,11 @@ public sealed class VmConsoleHost : HwndHost
 
         [DllImport("user32.dll")]
         public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        /// <summary>96 = 100 %, 120 = 125 %, 144 = 150 %. Sert a savoir si l'hote est
+        /// mis a l'echelle sans avoir besoin d'un visuel deja rattache a une fenetre.</summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForSystem();
 
         [DllImport("user32.dll")]
         public static extern bool AttachThreadInput(uint from, uint to, bool attach);

@@ -75,7 +75,11 @@ public partial class VmConsoleWindow : FluentWindow
     /// resolution arrivait une seconde plus tard.</summary>
     private void OnVideoSizeChanged(object? sender, Size video)
     {
-        VideoSizeText.Text = $"{(int)video.Width} x {(int)video.Height}";
+        // La resolution annoncee est celle de la VM, en PIXELS - pas la taille en
+        // unites WPF, qui vaudrait 1536x864 pour un ecran invite de 1920x1080 sur un
+        // hote a 125 %, et n'aurait aucun sens pour l'utilisateur.
+        var pixels = Console.VideoSizeInPixels;
+        VideoSizeText.Text = $"{(int)pixels.Width} x {(int)pixels.Height}";
 
         if (_isFullScreen || _userResized || video.Width <= 0 || video.Height <= 0) return;
 
