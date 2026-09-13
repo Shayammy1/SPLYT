@@ -361,7 +361,20 @@ function Get-NovaUnattendPrivacyCommands {
         'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-338388Enabled /t REG_DWORD /d 0 /f',
         'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-338389Enabled /t REG_DWORD /d 0 /f',
         'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-353694Enabled /t REG_DWORD /d 0 /f',
-        'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SystemPaneSuggestionsEnabled /t REG_DWORD /d 0 /f'
+        'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SystemPaneSuggestionsEnabled /t REG_DWORD /d 0 /f',
+        # EN DERNIER, et ce n'est pas de la personnalisation : le seul signal fiable
+        # qui dise a l'hote que l'installation est REELLEMENT finie.
+        #
+        # Le heartbeat Hyper-V ne suffit pas : il repond des la passe specialize,
+        # donc pendant l'ecran "Installation 54 %" qui suit le premier redemarrage
+        # (constate en direct). S'y fier rendait la VM a l'utilisateur alors que
+        # Windows etait encore en train de s'installer.
+        #
+        # Tout ce qui est ecrit sous cette cle du registre invite ressort cote hote
+        # dans Msvm_KvpExchangeComponent.GuestExchangeItems. Comme les commandes de
+        # premiere ouverture de session ne tournent qu'une fois la session ouverte,
+        # voir cette valeur apparaitre veut dire : le bureau est la.
+        'reg add "HKLM\SOFTWARE\Microsoft\Virtual Machine\Guest" /v SplytInstallComplete /t REG_SZ /d 1 /f'
     )
 
     $ordre = 1

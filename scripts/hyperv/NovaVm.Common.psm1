@@ -467,8 +467,18 @@ function ConvertTo-NovaVmDto {
     # qui couvre aussi les VMs installees avant l'existence de ce champ ou
     # importees de l'exterieur : la premiere fois qu'elles demarrent, elles se
     # marquent elles-memes.
+    #
+    # SAUF pendant une installation automatique : le heartbeat repond des la passe
+    # specialize, donc pendant l'ecran "Installation xx %" qui suit le premier
+    # redemarrage. Comme cette conversion tourne toutes les cinq secondes (la GUI
+    # rafraichit sa liste), c'est elle qui declarait Windows installe bien avant
+    # qu'il le soit - et la proposition "Tout configurer en un clic" surgissait au
+    # milieu de l'installation. Tant que unattendPending tient, c'est
+    # Watch-NovaVmInstallComplete.ps1 qui decide, sur le drapeau publie par
+    # l'invite lui-meme une fois arrive au bureau.
+    $unattendEnCours = [bool]$prefs.unattendPending
     $osInstalled = [bool]$prefs.osInstalled
-    if (-not $osInstalled -and $Vm.State -eq 'Running' -and (Test-NovaVmHeartbeatOk -Name $Vm.Name)) {
+    if (-not $osInstalled -and -not $unattendEnCours -and $Vm.State -eq 'Running' -and (Test-NovaVmHeartbeatOk -Name $Vm.Name)) {
         $osInstalled = $true
         Save-NovaVmPreferences -Name $Vm.Name -OsInstalled "true"
     }
@@ -481,7 +491,7 @@ function ConvertTo-NovaVmDto {
     # Ce sont Watch-NovaVmInstallComplete.ps1 (fin ou delai depasse) et
     # Stop-NovaVm.ps1 (abandon explicite) qui levent le drapeau, personne
     # d'autre - sinon la VM resterait cachee derriere une barre figee.
-    $unattendPending = [bool]$prefs.unattendPending -and -not $osInstalled
+    $unattendPending = $unattendEnCours -and -not $osInstalled
     $unattendStage   = if ($prefs.unattendStage) { [string]$prefs.unattendStage } else { "" }
     $unattendPercent = if ($null -ne $prefs.unattendPercent) { [int]$prefs.unattendPercent } else { 0 }
 

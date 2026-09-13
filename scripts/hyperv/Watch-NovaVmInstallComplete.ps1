@@ -40,6 +40,28 @@ function Get-NovaVmDiskBytes {
     try { return [int64](Get-VHD -Path $hd.Path -ErrorAction Stop).FileSize } catch { return 0 }
 }
 
+# Vrai quand l'invite a publie le drapeau pose par la derniere commande de
+# premiere ouverture de session du fichier de reponses (voir
+# Get-NovaUnattendPrivacyCommands). Contrairement au heartbeat, qui repond des la
+# passe specialize - donc pendant l'ecran "Installation xx %" qui suit le premier
+# redemarrage -, ce drapeau ne peut apparaitre qu'une fois la session ouverte,
+# c'est-a-dire au bureau.
+function Test-NovaGuestReportsInstalled {
+    param([Parameter(Mandatory)][string]$VmName)
+    try {
+        $cs = Get-WmiObject -Namespace root\virtualization\v2 -Class Msvm_ComputerSystem `
+            -Filter ("ElementName='" + ($VmName -replace "'", "''") + "'") -ErrorAction Stop
+        $kvp = $cs | ForEach-Object { $_.GetRelated("Msvm_KvpExchangeComponent") } | Select-Object -First 1
+        if (-not $kvp -or -not $kvp.GuestExchangeItems) { return $false }
+        foreach ($item in $kvp.GuestExchangeItems) {
+            if ($item -match 'SplytInstallComplete') { return $true }
+        }
+        return $false
+    } catch {
+        return $false
+    }
+}
+
 function Set-NovaUnattendProgress {
     param([string]$Stage, [int]$Percent)
     if (-not $unattend) { return }
@@ -53,10 +75,25 @@ function Set-NovaUnattendProgress {
 # suivantes). Ce chemin ne marche que SANS adaptateur GPU-P attache, ce qui est
 # toujours le cas pendant une installation - GPU-P n'est configure qu'apres.
 function Send-NovaBootKeyBurst {
-    param([Parameter(Mandatory)][string]$VmName, [int]$Seconds = 30)
+    param([Parameter(Mandatory)][string]$VmName, [int]$MaxSeconds = 150)
     $filter = "ElementName='" + ($VmName -replace "'", "''") + "'"
-    $deadline = (Get-Date).AddSeconds($Seconds)
+    $deadline = (Get-Date).AddSeconds($MaxSeconds)
+
+    # Duree genereuse ET sortie anticipee, parce qu'on ne sait pas quand l'invite
+    # va paraitre : mesure sur cette machine, une VM deja demarree une fois y
+    # arrive en moins de douze secondes, mais le TOUT PREMIER demarrage est bien
+    # plus lent (TPM virtuel et protecteur de cle a initialiser). Une rafale de
+    # trente secondes la manquait donc systematiquement sur une VM neuve - c'est
+    # a dire dans le seul cas qui compte - et le firmware repliait sur le reseau.
+    #
+    # On s'arrete des que le disque virtuel se met a grossir : l'installeur ecrit,
+    # donc l'invite est passee depuis longtemps et il n'y a plus aucune raison de
+    # continuer a taper dedans.
+    $baseOctets = Get-NovaVmDiskBytes -VmName $VmName
+    $tour = 0
     while ((Get-Date) -lt $deadline) {
+        if ($tour % 20 -eq 0 -and (Get-NovaVmDiskBytes -VmName $VmName) - $baseOctets -gt 64MB) { return }
+        $tour++
         try {
             $cs = Get-WmiObject -Namespace root\virtualization\v2 -Class Msvm_ComputerSystem `
                 -Filter $filter -ErrorAction Stop
@@ -66,6 +103,12 @@ function Send-NovaBootKeyBurst {
         Start-Sleep -Milliseconds 250
     }
 }
+
+# Taille du disque avant que l'installeur n'y touche : c'est le zero de la
+# progression. Relevee avant la rafale et pas dans la boucle principale, sinon
+# les premiers mega-octets ecrits pendant la rafale seraient comptes comme
+# "deja la" et la barre partirait en retard.
+$baselineBytes = -1
 
 if ($unattend) {
     Set-NovaUnattendProgress -Stage "starting" -Percent 2
@@ -81,12 +124,19 @@ if ($unattend) {
     }
 
     Set-NovaUnattendProgress -Stage "boot" -Percent 5
+    $baselineBytes = Get-NovaVmDiskBytes -VmName $Name
     Send-NovaBootKeyBurst -VmName $Name
     Set-NovaUnattendProgress -Stage "copy" -Percent 8
 }
 
 $deadline = (Get-Date).AddHours(3)
-$baselineBytes = -1
+
+# Filet de securite pour une installation automatique dont le fichier de reponses
+# n'aurait pas pu poser son drapeau : pose la premiere fois que le heartbeat
+# repond, et arme un repli douze minutes plus tard. Compte a partir du heartbeat
+# et pas du debut, pour ne pas dependre de la duree - tres variable - de la copie
+# des fichiers : ce qu'on veut couvrir, c'est la phase d'apres.
+$graceDeadline = $null
 
 while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 15
@@ -117,9 +167,29 @@ while ((Get-Date) -lt $deadline) {
     # Windows ("Pulsation" en francais), donc le filtre par nom ne trouvait jamais
     # rien sur un Windows non anglais - et ce script ne remettait donc jamais le
     # disque dur en premier peripherique de demarrage.
-    if (Test-NovaVmHeartbeatOk -Name $Name) {
-        # Heartbeat actif = Windows a demarre normalement (donc l'installation
-        # est terminee) : on remet le disque dur en premier au boot.
+    $heartbeat = Test-NovaVmHeartbeatOk -Name $Name
+    if ($heartbeat -and -not $graceDeadline) { $graceDeadline = (Get-Date).AddMinutes(12) }
+
+    # Fin de l'installation. Deux definitions, selon le signal disponible :
+    #
+    #  - installation automatique : l'invite le dit lui-meme, en publiant son
+    #    drapeau une fois la session ouverte. Le heartbeat ne suffit pas, il
+    #    repond des la passe specialize - donc pendant l'ecran "Installation
+    #    xx %" qui suit le premier redemarrage, alors que Windows en a encore
+    #    pour de longues minutes. Il ne sert ici que de filet, une fois le delai
+    #    de grace ecoule ;
+    #  - installation manuelle : rien ne pose de drapeau, le heartbeat reste le
+    #    seul signal disponible, comme avant.
+    $termine = if ($unattend) {
+        (Test-NovaGuestReportsInstalled -VmName $Name) -or
+        ($graceDeadline -and (Get-Date) -gt $graceDeadline -and $heartbeat)
+    } else {
+        $heartbeat
+    }
+
+    if ($termine) {
+        # On remet le disque dur en premier peripherique de demarrage, pour que
+        # les demarrages suivants ne relancent pas l'installeur depuis l'ISO.
         $hardDrive = Get-VMHardDiskDrive -VMName $Name -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($hardDrive) {
             try { Set-VMFirmware -VMName $Name -FirstBootDevice $hardDrive -ErrorAction Stop } catch { }
