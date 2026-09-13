@@ -46,9 +46,16 @@ Import-Module (Join-Path $PSScriptRoot "NovaVm.Common.psm1") -Force
 # l'echelle est reglee sur "par ecran" avant toute mesure, sinon Windows
 # virtualiserait les coordonnees et la fenetre atterrirait a cote sur un poste dont
 # les ecrans n'ont pas le meme facteur d'echelle.
+#
+# Ce code volontairement pauvre ne s'appuie que sur mscorlib et System : pas de
+# generiques de collections, pas d'expression lambda. Add-Type compile avec le
+# jeu de references par defaut de Windows PowerShell, et celui-ci depend du
+# repertoire de travail du processus : lance depuis "C:\Program Files\SPLYT",
+# comme le fait l'application installee, il ne resolvait plus System.Core et la
+# compilation echouait sur un simple HashSet - le placement de la fenetre etait
+# alors perdu alors que tout marchait depuis un autre dossier.
 Add-Type -TypeDefinition @"
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -105,7 +112,7 @@ public class NovaMoonlightWindow {
     /// n'existe plus - un ecran peut avoir ete debranche depuis l'affichage de la
     /// fenetre de choix.</summary>
     public static int[] GetMonitorBounds(string deviceName) {
-        var mode = new DEVMODE();
+        DEVMODE mode = new DEVMODE();
         mode.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
         if (!EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref mode)) return null;
         if (mode.dmPelsWidth <= 0 || mode.dmPelsHeight <= 0) return null;
@@ -116,26 +123,34 @@ public class NovaMoonlightWindow {
     /// lanceur par son titre : celui-ci s'appelle exactement "Moonlight", tandis que
     /// la fenetre de flux porte le nom de l'hote diffuse. IntPtr.Zero tant qu'elle
     /// n'est pas encore apparue.</summary>
+    static IntPtr _found;
+    static int[] _wantedProcessIds;
+
+    static bool Visit(IntPtr hWnd, IntPtr lParam) {
+        if (!IsWindowVisible(hWnd)) return true;
+
+        uint owner;
+        GetWindowThreadProcessId(hWnd, out owner);
+        bool mine = false;
+        for (int i = 0; i < _wantedProcessIds.Length; i++) {
+            if ((uint)_wantedProcessIds[i] == owner) { mine = true; break; }
+        }
+        if (!mine) return true;
+
+        StringBuilder title = new StringBuilder(256);
+        GetWindowText(hWnd, title, title.Capacity);
+        string text = title.ToString();
+        if (text.Length == 0 || text == "Moonlight") return true;
+
+        _found = hWnd;
+        return false;
+    }
+
     public static IntPtr FindStreamWindow(int[] processIds) {
-        IntPtr found = IntPtr.Zero;
-        var wanted = new HashSet<uint>();
-        foreach (int id in processIds) wanted.Add((uint)id);
-
-        EnumWindows((hWnd, _) => {
-            if (!IsWindowVisible(hWnd)) return true;
-            uint owner;
-            GetWindowThreadProcessId(hWnd, out owner);
-            if (!wanted.Contains(owner)) return true;
-
-            var title = new StringBuilder(256);
-            GetWindowText(hWnd, title, title.Capacity);
-            string text = title.ToString();
-            if (text.Length == 0 || text == "Moonlight") return true;
-
-            found = hWnd;
-            return false;
-        }, IntPtr.Zero);
-        return found;
+        _found = IntPtr.Zero;
+        _wantedProcessIds = processIds;
+        EnumWindows(new EnumWindowsProc(Visit), IntPtr.Zero);
+        return _found;
     }
 
     public static bool MoveTo(IntPtr window, int x, int y, int width, int height) {
