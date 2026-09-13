@@ -238,6 +238,15 @@ Invoke-NovaAction {
         "--no-audio-on-host",
         "--capture-system-keys", "fullscreen"
     )
+    # Surtout PAS de -RedirectStandardOutput/-RedirectStandardError ici, malgre
+    # l'interet qu'aurait le journal de Moonlight pour le diagnostic : la
+    # redirection fait demarrer Moonlight avec l'heritage des handles, et il garde
+    # alors ouvert le tuyau de sortie que SPLYT branche sur PowerShell. SPLYT
+    # attend la fermeture de ce tuyau pour rendre la main : il resterait bloque sur
+    # "Lancement..." pendant toute la session de jeu. Mesure faite, pas supposee.
+    #
+    # Pour diagnostiquer un lancement qui ne donne rien, Moonlight tient de toute
+    # facon son propre journal dans %TEMP%\Moonlight-*.log.
     $moonlight = Start-Process -FilePath $moonlightPath -ArgumentList $arguments -PassThru
 
     # Placement sur l'ecran demande. Best-effort de bout en bout : un flux qui
