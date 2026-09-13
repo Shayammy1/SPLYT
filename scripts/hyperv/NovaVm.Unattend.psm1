@@ -381,6 +381,50 @@ function Get-NovaUnattendPrivacyCommands {
 }
 
 # Fabrique l'ISO qui porte le fichier de reponses, et rend son chemin.
+# Vrai si l'image d'installation porte DEJA son propre autounattend.xml a sa
+# racine. Windows Setup cherche un fichier de reponses sur tous les medias
+# amovibles et retient le PREMIER trouve : celui du media de demarrage passe
+# donc avant le notre, monte sur un second lecteur. Le cas est frequent avec
+# les images remaniees (tiny11 et compagnie), et il est silencieux : leur
+# fichier ne repond souvent qu'a une poignee de questions, l'installation
+# s'arrete alors sur le premier ecran venu sans dire pourquoi - avec, cote
+# SPLYT, une VM cachee derriere une barre qui n'avance plus.
+#
+# Monte l'image en lecture seule le temps du test. Best-effort : si le montage
+# echoue (image deja montee ailleurs, fichier verrouille), on repond "non" et
+# l'installation suit son cours normal - mieux vaut rater un avertissement que
+# refuser une image parfaitement valable.
+function Test-NovaIsoHasOwnAnswerFile {
+    param([Parameter(Mandatory)][string]$IsoPath)
+
+    # Si l'image est deja montee (l'utilisateur l'explore dans son explorateur,
+    # par exemple), on se contente de la lire : la demonter derriere lui ferait
+    # disparaitre son lecteur sous ses yeux.
+    $dejaMontee = $false
+    try { $dejaMontee = [bool](Get-DiskImage -ImagePath $IsoPath -ErrorAction Stop).Attached } catch { }
+
+    $mounted = $null
+    try {
+        $mounted = if ($dejaMontee) {
+            Get-DiskImage -ImagePath $IsoPath -ErrorAction Stop
+        } else {
+            Mount-DiskImage -ImagePath $IsoPath -Access ReadOnly -PassThru -ErrorAction Stop
+        }
+        $letter = ($mounted | Get-Volume -ErrorAction Stop).DriveLetter
+        if (-not $letter) { return $false }
+        foreach ($nom in @("autounattend.xml", "unattend.xml")) {
+            if (Test-Path -LiteralPath "${letter}:\$nom") { return $true }
+        }
+        return $false
+    } catch {
+        return $false
+    } finally {
+        if ($mounted -and -not $dejaMontee) {
+            Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
+}
+
 function New-NovaUnattendIso {
     param(
         [Parameter(Mandatory)][string]$VmName,
@@ -452,4 +496,4 @@ function Remove-NovaUnattendIso {
     }
 }
 
-Export-ModuleMember -Function New-NovaUnattendIso, Remove-NovaUnattendIso, Get-NovaUnattendXml
+Export-ModuleMember -Function New-NovaUnattendIso, Remove-NovaUnattendIso, Get-NovaUnattendXml, Test-NovaIsoHasOwnAnswerFile

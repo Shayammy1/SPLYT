@@ -83,6 +83,13 @@ Invoke-NovaAction {
         if ($unattendUsername -match '[\\/:*?"<>|\[\];=,+]') {
             throw "Le nom d'utilisateur contient un caractere que Windows refuse."
         }
+        # Verifie AVANT de creer quoi que ce soit : une image qui porte deja son
+        # propre fichier de reponses gagne toujours sur le notre, et l'utilisateur
+        # se retrouverait sinon devant une installation arretee sur un ecran
+        # quelconque, derriere une barre de progression qui n'avance plus.
+        if (Test-NovaIsoHasOwnAnswerFile -IsoPath $IsoPath) {
+            throw "Cette image d'installation porte deja son propre fichier de reponses (autounattend.xml a sa racine), ce qui est frequent sur les images remaniees type tiny11. Windows utilisera le sien et ignorera celui de SPLYT : l'installation automatique ne peut pas s'appliquer. Choisissez l'image officielle de Windows 11, ou l'installation manuelle - cette image repondra alors elle-meme aux questions qu'elle sait traiter."
+        }
     }
     $hostMemory = Get-NovaHostMemoryInfo
     if ($MemoryMb -gt $hostMemory.maxVmMemoryMb) {
