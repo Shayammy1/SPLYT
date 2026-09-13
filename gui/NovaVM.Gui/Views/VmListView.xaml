@@ -662,6 +662,28 @@
                                     </Button>
                                 </WrapPanel>
 
+                                <!-- Gel du flux pendant les demandes d'elevation.
+                                     Sa carte est a decouvert, et non rangee dans le panneau
+                                     repliable plus bas : c'est un symptome que l'utilisateur
+                                     subit et vient chercher, pas un reglage avance. -->
+                                <Border Style="{StaticResource SettingCardStyle}" Margin="0,16,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="{markup:Tr VmList_SecureDesktop_Title}" FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                        <TextBlock Text="{markup:Tr VmList_SecureDesktop_Note}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10" />
+                                        <WrapPanel Orientation="Horizontal">
+                                            <Button Content="{markup:Tr VmList_SecureDesktop_Show}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding SecureDesktopShowCommand}" Margin="0,0,8,0"
+                                                    ToolTip="{markup:Tr VmList_SecureDesktop_Show_Tooltip}" />
+                                            <Button Content="{markup:Tr VmList_SecureDesktop_Restore}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding SecureDesktopRestoreCommand}" />
+                                        </WrapPanel>
+                                        <TextBlock Text="{markup:Tr VmList_SecureDesktop_CredentialsNote}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0" />
+                                    </StackPanel>
+                                </Border>
+
                                 <TextBlock Text="{Binding DisplayDiagnosticsSummary}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
                                            Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,0"
                                            Visibility="{Binding DisplayDiagnosticsSummary, Converter={StaticResource NullToVisibilityConverter}}" />
@@ -716,18 +738,6 @@
                                                     Command="{Binding AutoLogonDisableCommand}" Margin="0,0,8,8" />
                                         </WrapPanel>
 
-                                        <!-- Bureau securise : les demandes d'elevation de la VM
-                                             figent le flux tant qu'elles sont affichees, parce que
-                                             ce bureau-la n'est capturable par rien. -->
-                                        <TextBlock Text="{markup:Tr VmList_SecureDesktop_Note}" TextWrapping="Wrap" FontSize="11"
-                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8" />
-                                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,18">
-                                            <Button Content="{markup:Tr VmList_SecureDesktop_Show}" Style="{StaticResource GhostButtonStyle}"
-                                                    Command="{Binding SecureDesktopShowCommand}" Margin="0,0,8,8"
-                                                    ToolTip="{markup:Tr VmList_SecureDesktop_Show_Tooltip}" />
-                                            <Button Content="{markup:Tr VmList_SecureDesktop_Restore}" Style="{StaticResource GhostButtonStyle}"
-                                                    Command="{Binding SecureDesktopRestoreCommand}" Margin="0,0,8,8" />
-                                        </WrapPanel>
 
                                         <TextBlock Text="{Binding VddResultText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
                                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,0"
