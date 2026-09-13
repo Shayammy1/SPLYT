@@ -301,7 +301,7 @@ function Get-NovaStreamBitrateKbps {
 function Get-NovaVmPreferences {
     param([Parameter(Mandatory)][string]$Name)
 
-    $default = [ordered]@{ name = $Name; gpuName = $null; gpuVramMb = 0; resolution = "1920x1080"; hz = 60; osInstalled = $false; gpuDriverVersion = $null }
+    $default = [ordered]@{ name = $Name; gpuName = $null; gpuVramMb = 0; resolution = "1920x1080"; hz = 60; osInstalled = $false; gpuDriverVersion = $null; usbBusIds = ""; unattendPending = $false; unattendStage = ""; unattendPercent = 0 }
     $mutex = New-Object System.Threading.Mutex($false, "Global\NovaVM_PreferencesStore")
     try {
         [void]$mutex.WaitOne(5000)
@@ -345,7 +345,17 @@ function Save-NovaVmPreferences {
         # separes par des virgules. Chaine vide = plus aucun. Sert au lancement du
         # mode jeu : sans cette liste, SPLYT ne saurait pas quels peripheriques la
         # VM est censee recuperer, et lancerait le flux sans les attendre.
-        [string]$UsbBusIds = ""
+        [string]$UsbBusIds = "",
+        # "true" tant qu'une installation automatique de Windows est en cours sur
+        # cette VM. Sert a la cacher et a montrer une progression a la place.
+        [string]$UnattendPending = "",
+        # Avancement REEL de cette installation, ecrit par
+        # Watch-NovaVmInstallComplete.ps1 : un identifiant d'etape (voir
+        # UnattendStageLabel cote GUI) et un pourcentage 0-100 deduit de la
+        # taille reellement ecrite dans le disque virtuel. -1 = non fourni,
+        # pour distinguer "pas d'info" de "0 %".
+        [string]$UnattendStage = "",
+        [int]$UnattendPercent = -1
     )
     $mutex = New-Object System.Threading.Mutex($false, "Global\NovaVM_PreferencesStore")
     try {
@@ -375,6 +385,9 @@ function Save-NovaVmPreferences {
         $hzValue         = if ($PSBoundParameters.ContainsKey('Hz'))         { $Hz }         elseif ($existing) { $existing.hz }         else { 60 }
         $gpuDriverVersionValue = if ($PSBoundParameters.ContainsKey('GpuDriverVersion')) { $GpuDriverVersion } elseif ($existing) { $existing.gpuDriverVersion } else { $null }
         $usbBusIdsValue = if ($PSBoundParameters.ContainsKey('UsbBusIds')) { $UsbBusIds } elseif ($existing) { $existing.usbBusIds } else { "" }
+        $unattendPendingValue = if ($UnattendPending -ne "") { ($UnattendPending -eq "true") } elseif ($existing -and $null -ne $existing.unattendPending) { [bool]$existing.unattendPending } else { $false }
+        $unattendStageValue = if ($UnattendStage -ne "") { $UnattendStage } elseif ($existing -and $existing.unattendStage) { $existing.unattendStage } else { "" }
+        $unattendPercentValue = if ($UnattendPercent -ge 0) { $UnattendPercent } elseif ($existing -and $null -ne $existing.unattendPercent) { [int]$existing.unattendPercent } else { 0 }
 
         $osInstalledValue = if ($OsInstalled -ne "") {
             ($OsInstalled -eq "true")
@@ -393,6 +406,9 @@ function Save-NovaVmPreferences {
             osInstalled = $osInstalledValue
             gpuDriverVersion = $gpuDriverVersionValue
             usbBusIds   = $usbBusIdsValue
+            unattendPending = $unattendPendingValue
+            unattendStage   = $unattendStageValue
+            unattendPercent = $unattendPercentValue
         }
 
         $updated = New-Object System.Collections.ArrayList
@@ -457,6 +473,18 @@ function ConvertTo-NovaVmDto {
         Save-NovaVmPreferences -Name $Vm.Name -OsInstalled "true"
     }
 
+    # Installation automatique en cours : la GUI garde alors la VM entierement
+    # cachee (pas de console) et affiche une barre de progression a la place.
+    # Volontairement independant de l'etat Hyper-V du moment : la VM est encore
+    # eteinte quand New-NovaVm.ps1 rend son DTO (c'est la GUI qui l'allume
+    # ensuite, sans console), et une installation redemarre plusieurs fois.
+    # Ce sont Watch-NovaVmInstallComplete.ps1 (fin ou delai depasse) et
+    # Stop-NovaVm.ps1 (abandon explicite) qui levent le drapeau, personne
+    # d'autre - sinon la VM resterait cachee derriere une barre figee.
+    $unattendPending = [bool]$prefs.unattendPending -and -not $osInstalled
+    $unattendStage   = if ($prefs.unattendStage) { [string]$prefs.unattendStage } else { "" }
+    $unattendPercent = if ($null -ne $prefs.unattendPercent) { [int]$prefs.unattendPercent } else { 0 }
+
     $isoPath = $null
     $dvd = Get-VMDvdDrive -VMName $Vm.Name -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($dvd -and $dvd.Path) { $isoPath = $dvd.Path }
@@ -510,6 +538,9 @@ function ConvertTo-NovaVmDto {
         isoPath               = $isoPath
         needsBootKeyPress     = $needsBootKeyPress
         osInstalled           = $osInstalled
+        unattendPending       = $unattendPending
+        unattendStage         = $unattendStage
+        unattendPercent       = $unattendPercent
         lastError             = $null
     }
 }

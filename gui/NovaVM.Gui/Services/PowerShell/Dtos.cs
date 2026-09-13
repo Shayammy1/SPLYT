@@ -32,6 +32,18 @@ public sealed class VirtualMachineDto
     /// configuration en un clic et rend le bouton "SPLYT" disponible.</summary>
     public bool OsInstalled { get; set; }
 
+    /// <summary>Vrai tant qu'une installation automatique de Windows tourne dans
+    /// cette VM : SPLYT la garde alors entierement cachee (aucune console) et
+    /// affiche une barre de progression a sa place.</summary>
+    public bool UnattendPending { get; set; }
+
+    /// <summary>Etape en cours de cette installation ("starting", "boot", "copy",
+    /// "configure", "done", "timeout") et son avancement 0-100, tous deux ecrits
+    /// par Watch-NovaVmInstallComplete.ps1 a partir de ce qui est reellement
+    /// ecrit dans le disque virtuel.</summary>
+    public string? UnattendStage { get; set; }
+    public int UnattendPercent { get; set; }
+
     public string? LastError { get; set; }
 }
 

@@ -28,6 +28,9 @@ public sealed class VirtualMachine : ObservableObject
     private string? _isoPath;
     private bool _osInstalled;
     private bool _needsBootKeyPress;
+    private bool _unattendPending;
+    private string _unattendStage = "";
+    private int _unattendPercent;
     private string? _lastError;
 
     public string Id { get => _id; set => SetProperty(ref _id, value); }
@@ -74,6 +77,48 @@ public sealed class VirtualMachine : ObservableObject
     /// from CD or DVD...", que la console fait a la place de l'utilisateur (voir
     /// VmConsoleHost.SendBootKeyBurst).</summary>
     public bool NeedsBootKeyPress { get => _needsBootKeyPress; set => SetProperty(ref _needsBootKeyPress, value); }
+
+    /// <summary>Vrai tant que l'installation automatique de Windows tourne. La VM
+    /// est alors entierement cachee : pas de console, pas de flux - il n'y a rien
+    /// d'utile a y voir, et un clic de travers pendant l'installation la casse.
+    /// Seule la progression ci-dessous est montree.</summary>
+    public bool UnattendPending
+    {
+        get => _unattendPending;
+        set
+        {
+            if (SetProperty(ref _unattendPending, value))
+            {
+                OnPropertyChanged(nameof(InstallStageLabel));
+            }
+        }
+    }
+
+    /// <summary>Identifiant d'etape ecrit par Watch-NovaVmInstallComplete.ps1 :
+    /// traduit ici, parce que les scripts restent en francais par convention.</summary>
+    public string UnattendStage
+    {
+        get => _unattendStage;
+        set
+        {
+            if (SetProperty(ref _unattendStage, value)) OnPropertyChanged(nameof(InstallStageLabel));
+        }
+    }
+
+    public int UnattendPercent { get => _unattendPercent; set => SetProperty(ref _unattendPercent, value); }
+
+    /// <summary>Libelle de l'etape en cours. Une etape inconnue retombe sur le
+    /// libelle generique plutot que d'afficher une cle brute : les identifiants
+    /// d'etape viennent d'un script qui peut evoluer sans la GUI.</summary>
+    public string InstallStageLabel => UnattendStage switch
+    {
+        "starting" => Loc.Get("VmList_Install_Stage_Starting"),
+        "boot" => Loc.Get("VmList_Install_Stage_Boot"),
+        "copy" => Loc.Get("VmList_Install_Stage_Copy"),
+        "configure" => Loc.Get("VmList_Install_Stage_Configure"),
+        _ => Loc.Get("VmList_Install_Stage_Running"),
+    };
+
     public string? LastError { get => _lastError; set => SetProperty(ref _lastError, value); }
 
     public bool HasGpuPartition => !string.IsNullOrWhiteSpace(GpuName);
@@ -110,6 +155,9 @@ public sealed class VirtualMachine : ObservableObject
         IsoPath = dto.IsoPath,
         OsInstalled = dto.OsInstalled,
         NeedsBootKeyPress = dto.NeedsBootKeyPress,
+        UnattendPending = dto.UnattendPending,
+        UnattendStage = dto.UnattendStage ?? "",
+        UnattendPercent = dto.UnattendPercent,
         LastError = dto.LastError,
     };
 
@@ -131,6 +179,9 @@ public sealed class VirtualMachine : ObservableObject
         IsoPath = dto.IsoPath;
         OsInstalled = dto.OsInstalled;
         NeedsBootKeyPress = dto.NeedsBootKeyPress;
+        UnattendPending = dto.UnattendPending;
+        UnattendStage = dto.UnattendStage ?? "";
+        UnattendPercent = dto.UnattendPercent;
         LastError = dto.LastError;
         OnPropertyChanged(nameof(HasGpuPartition));
         OnPropertyChanged(nameof(MemoryGb));

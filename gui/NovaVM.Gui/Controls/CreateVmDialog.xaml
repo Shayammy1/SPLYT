@@ -79,12 +79,20 @@
                              Sunshine : c'est pour ca qu'on le demande maintenant. -->
                         <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,16">
                             <StackPanel>
-                                <CheckBox Content="{markup:Tr CreateVm_Unattend}" IsChecked="{Binding UnattendInstall}"
-                                          Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" />
-                                <TextBlock Text="{markup:Tr CreateVm_Unattend_Note}" FontSize="11" TextWrapping="Wrap"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" />
+                                <TextBlock Text="{markup:Tr CreateVm_Unattend_Choice}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10" />
 
-                                <StackPanel Margin="0,12,0,0"
+                                <RadioButton GroupName="InstallMode" IsChecked="{Binding UnattendInstall}"
+                                             Foreground="{StaticResource TextPrimaryBrush}">
+                                    <TextBlock Text="{markup:Tr CreateVm_Unattend}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                </RadioButton>
+                                <TextBlock Text="{markup:Tr CreateVm_Unattend_Note}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="24,4,0,0" />
+
+                                <!-- Le compte demande appartient a l'option ci-dessus,
+                                     pas au choix en general : il reste donc aligne
+                                     dessous, et disparait avec elle. -->
+                                <StackPanel Margin="24,10,0,0"
                                             Visibility="{Binding UnattendInstall, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <TextBlock Text="{markup:Tr CreateVm_Unattend_Username}" FontSize="12"
                                                Foreground="{StaticResource TextSecondaryBrush}" />
@@ -100,6 +108,14 @@
                                     <TextBlock Text="{markup:Tr CreateVm_Unattend_PasswordNote}" FontSize="11" TextWrapping="Wrap"
                                                Foreground="{StaticResource TextMutedBrush}" />
                                 </StackPanel>
+
+                                <RadioButton GroupName="InstallMode" IsChecked="{Binding ManualInstall}"
+                                             Margin="0,14,0,0"
+                                             Foreground="{StaticResource TextPrimaryBrush}">
+                                    <TextBlock Text="{markup:Tr CreateVm_Manual}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                </RadioButton>
+                                <TextBlock Text="{markup:Tr CreateVm_Manual_Note}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="24,4,0,0" />
                             </StackPanel>
                         </Border>
 

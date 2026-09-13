@@ -96,9 +96,12 @@ public sealed class VmListViewModel : ViewModelBase
         RunSplytSetupCommand = new RelayCommand(
             () => { if (SelectedVm is not null) SplytSetupSuggested?.Invoke(this, SelectedVm); },
             () => CanRunSplytSetup);
+        // Pas de console pendant une installation automatique : la VM est cachee
+        // exprès, et l'ouvrir laisserait l'utilisateur cliquer au milieu de
+        // l'installeur - ce qui suffit a la faire deraper.
         OpenConsoleCommand = new RelayCommand(
             () => { if (SelectedVm is not null) ConsoleRequested?.Invoke(this, SelectedVm); },
-            () => SelectedVm is { State: VmState.Running });
+            () => SelectedVm is { State: VmState.Running, UnattendPending: false });
         BrowseNvidiaDriverCommand = new RelayCommand(BrowseNvidiaDriver);
         PatchNvidiaGpuDriverCommand = new AsyncRelayCommand(PatchNvidiaGpuDriverAsync,
             () => SelectedVm is { State: VmState.Off } && !string.IsNullOrWhiteSpace(EditGpuName) && !string.IsNullOrWhiteSpace(NvidiaDriverInstallerPath));
@@ -246,6 +249,7 @@ public sealed class VmListViewModel : ViewModelBase
                 LoadEditFieldsFromSelection();
                 OnPropertyChanged(nameof(CanRunSplytSetup));
                 OnPropertyChanged(nameof(CannotRunSplytSetup));
+                OnPropertyChanged(nameof(IsInstallingWindows));
                 RaiseAllCanExecuteChanged();
 
                 // Liste des peripheriques USB chargee d'avance : arriver sur
@@ -554,6 +558,12 @@ public sealed class VmListViewModel : ViewModelBase
     /// l'utilisateur sans explication ni recours si la detection se trompe.</summary>
     public bool CannotRunSplytSetup => !CanRunSplytSetup;
 
+    /// <summary>Vrai quand la VM selectionnee est en train d'installer Windows
+    /// toute seule. Le panneau de detail bascule alors sur la seule progression :
+    /// les onglets et les actions n'ont aucun sens sur une machine qu'on est en
+    /// train d'installer, et la console est volontairement inaccessible.</summary>
+    public bool IsInstallingWindows => SelectedVm?.UnattendPending == true;
+
     /// <summary>Vrai pendant tout l'enchainement demarrage -> attente -> Moonlight,
     /// qui peut prendre une minute ou deux si la VM etait eteinte.</summary>
     public bool IsLaunchingMoonlight
@@ -707,6 +717,12 @@ public sealed class VmListViewModel : ViewModelBase
         Vms.Add(vm);
         SelectedVm = vm;
         VmsChanged?.Invoke(this, EventArgs.Empty);
+
+        // Installation automatique : "l'utilisateur n'a rien a faire" commence
+        // ici. On allume la machine nous-memes, sans console, et la progression
+        // prend le relais. Volontairement sans await : la boite de creation doit
+        // se refermer tout de suite, le demarrage suit tout seul.
+        if (vm.UnattendPending) _ = StartHiddenAsync();
     }
 
     private void LoadEditFieldsFromSelection()
@@ -762,7 +778,16 @@ public sealed class VmListViewModel : ViewModelBase
     private async Task StartAndShowConsoleAsync()
     {
         await ChangeStateAsync(_vmService.StartVmAsync);
-        if (SelectedVm is { State: VmState.Running }) ConsoleRequested?.Invoke(this, SelectedVm);
+        if (SelectedVm is { State: VmState.Running, UnattendPending: false }) ConsoleRequested?.Invoke(this, SelectedVm);
+    }
+
+    /// <summary>Demarre la VM SANS ouvrir sa console : utilise juste apres la
+    /// creation d'une VM en installation automatique. L'utilisateur a demande a
+    /// n'avoir rien a faire, donc SPLYT allume la machine lui-meme - mais il ne
+    /// doit rien voir d'autre que la barre de progression.</summary>
+    public async Task StartHiddenAsync()
+    {
+        await ChangeStateAsync(_vmService.StartVmAsync);
     }
 
     private async Task ChangeStateAsync(Func<string, Task<VirtualMachine?>> action)
@@ -808,6 +833,25 @@ public sealed class VmListViewModel : ViewModelBase
         {
             var fresh = vms.FirstOrDefault(v => v.Name == vm.Name);
             if (fresh is null) continue;
+
+            // Avancement de l'installation automatique : recopie AVANT le
+            // "continue" sur l'etat inchange plus bas, sinon la barre ne bougerait
+            // jamais - une VM qui installe Windows reste "En cours" du debut a la
+            // fin, c'est justement le seul cas ou l'etat ne change pas.
+            if (vm.UnattendPending || fresh.UnattendPending)
+            {
+                // changed uniquement quand l'installation se TERMINE : c'est la
+                // que les boutons et les onglets doivent redevenir cliquables.
+                // Le pourcentage, lui, se propage tout seul par les liaisons -
+                // le declarer "change" a chaque tour relancerait un rafraichissement
+                // complet toutes les cinq secondes pendant toute l'installation.
+                if (vm.UnattendPending && !fresh.UnattendPending) changed = true;
+
+                vm.UnattendPending = fresh.UnattendPending;
+                vm.UnattendStage = fresh.UnattendStage;
+                vm.UnattendPercent = fresh.UnattendPercent;
+                OnPropertyChanged(nameof(IsInstallingWindows));
+            }
 
             // Transition "Windows vient de finir de s'installer" : c'est le moment
             // ou proposer la configuration en un clic, une seule fois par VM (le
@@ -1316,6 +1360,9 @@ public sealed class VmListViewModel : ViewModelBase
         // demarrage sur CD.
         OsInstalled = vm.OsInstalled,
         NeedsBootKeyPress = vm.NeedsBootKeyPress,
+        UnattendPending = vm.UnattendPending,
+        UnattendStage = vm.UnattendStage,
+        UnattendPercent = vm.UnattendPercent,
         LastError = vm.LastError,
     };
 }

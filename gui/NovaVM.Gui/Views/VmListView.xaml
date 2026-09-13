@@ -109,6 +109,10 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type models:VirtualMachine}">
                                 <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
@@ -138,6 +142,14 @@
                                     <Ellipse Grid.Column="2" Width="9" Height="9" VerticalAlignment="Center"
                                              Margin="8,0,0,0"
                                              Fill="{Binding State, Converter={StaticResource VmStateToBrushConverter}}" />
+
+                                    <!-- Rappel de la progression jusque dans la liste :
+                                         l'installation dure plusieurs minutes et la VM
+                                         n'est pas forcement celle qu'on regarde. -->
+                                    <ProgressBar Grid.Row="1" Grid.ColumnSpan="3" Height="3" Margin="0,8,0,0"
+                                                 Minimum="0" Maximum="100"
+                                                 Value="{Binding UnattendPercent, Mode=OneWay}"
+                                                 Visibility="{Binding UnattendPending, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -183,7 +195,12 @@
                              importance apparente, alors que le premier est l'action
                              principale une fois la VM configuree - et qu'il fait de
                              toute facon demarrer la VM au passage. -->
-                        <WrapPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <!-- Pendant une installation automatique, aucune de ces
+                             actions n'a de sens : la machine appartient a
+                             l'installeur jusqu'a ce qu'il ait fini. La carte de
+                             progression ci-dessous prend toute la place. -->
+                        <WrapPanel Orientation="Horizontal" Margin="0,16,0,0"
+                                   Visibility="{Binding SelectedVm.UnattendPending, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                             <Button Style="{StaticResource AccentButtonStyle}"
                                     Command="{Binding LaunchWithMoonlightCommand}" Margin="0,0,8,8"
                                     ToolTip="{markup:Tr VmList_LaunchMoonlight_Tooltip}"
@@ -229,6 +246,47 @@
                             </Button>
                         </WrapPanel>
                     </StackPanel>
+
+                    <!-- Installation automatique de Windows en cours : la VM est
+                         entierement cachee (ni console ni flux, voir
+                         VmListViewModel.StartHiddenAsync) et c'est cette carte qui
+                         la remplace. Le pourcentage vient de ce qui est REELLEMENT
+                         ecrit dans le disque virtuel (voir
+                         Watch-NovaVmInstallComplete.ps1), pas d'une minuterie :
+                         une barre qui avance toute seule pendant qu'une
+                         installation est bloquee ne renseigne sur rien. -->
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,16" Padding="20,18" CornerRadius="12"
+                            Background="{StaticResource SurfaceElevatedBrush}"
+                            BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                            Visibility="{Binding SelectedVm.UnattendPending, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="18" VerticalAlignment="Center"
+                                               Foreground="{StaticResource AccentBrush}" Margin="0,0,10,0" />
+                                <TextBlock Text="{markup:Tr VmList_Install_Title}" FontSize="15" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding SelectedVm.InstallStageLabel}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center">
+                                    <Run Text="{Binding SelectedVm.UnattendPercent, Mode=OneWay}" /><Run Text="%" />
+                                </TextBlock>
+                            </Grid>
+
+                            <ProgressBar Height="6" Minimum="0" Maximum="100"
+                                         Value="{Binding SelectedVm.UnattendPercent, Mode=OneWay}" />
+
+                            <TextBlock Text="{markup:Tr VmList_Install_Note}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,12,0,0" />
+                        </StackPanel>
+                    </Border>
 
                     <!-- Progression / resultat du lancement Moonlight -->
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12"
@@ -286,7 +344,11 @@
                                    TextWrapping="Wrap" FontSize="12" />
                     </Border>
 
-                    <TabControl Style="{StaticResource PillTabControlStyle}">
+                    <!-- Meme raison que pour les boutons d'action : modifier le
+                         processeur, le GPU-P ou les peripheriques d'une VM pendant
+                         que Windows s'y installe ne peut que mal finir. -->
+                    <TabControl Style="{StaticResource PillTabControlStyle}"
+                                Visibility="{Binding SelectedVm.UnattendPending, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                         <TabItem>
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal">

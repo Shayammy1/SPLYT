@@ -136,7 +136,13 @@ public sealed class NovaVmService
     public async Task StopAllRunningVmsAsync()
     {
         var vms = await GetVmsAsync();
-        var runningVmNames = vms.Where(v => v.State == VmState.Running).Select(v => v.Name).ToList();
+        // Une VM en cours d'installation automatique est epargnee : le
+        // surveillant qui la pilote est un processus detache, justement pour
+        // survivre a la fermeture de SPLYT. L'eteindre ici reviendrait a
+        // interrompre une installation qu'on a promis de mener a son terme sans
+        // que l'utilisateur ait rien a faire.
+        var runningVmNames = vms.Where(v => v.State == VmState.Running && !v.UnattendPending)
+                                .Select(v => v.Name).ToList();
         await Task.WhenAll(runningVmNames.Select(StopVmAsync));
     }
 

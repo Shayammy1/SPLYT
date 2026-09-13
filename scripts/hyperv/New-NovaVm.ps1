@@ -168,6 +168,15 @@ Invoke-NovaAction {
         $gpu = if ([string]::IsNullOrWhiteSpace($GpuName)) { $null } else { $GpuName }
         Save-NovaVmPreferences -Name $Name -GpuName $gpu -GpuVramMb $(if ($gpu) { $GpuVramMb } else { 0 }) `
             -Resolution "1920x1080" -Hz 60
+
+        # Marque l'installation automatique comme "en cours" DES LA CREATION, et
+        # pas au premier demarrage : c'est ce drapeau qui dit a la GUI de ne pas
+        # ouvrir de console pour cette VM et d'afficher une progression a la
+        # place. S'il n'etait pose qu'au demarrage, la console s'ouvrirait le
+        # temps d'un aller-retour avec le script, ce que l'utilisateur verrait.
+        if ($unattendBool) {
+            Save-NovaVmPreferences -Name $Name -UnattendPending "true" -UnattendStage "starting" -UnattendPercent 0
+        }
     } catch {
         Remove-VM -Name $Name -Force -ErrorAction SilentlyContinue
         if ($vhdPath -and (Test-Path -LiteralPath $vhdPath)) {

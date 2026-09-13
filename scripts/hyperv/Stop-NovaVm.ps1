@@ -85,6 +85,17 @@ Invoke-NovaAction {
         }
     }
 
+    # Arreter la VM a la main pendant une installation automatique, c'est y
+    # renoncer : on rend la machine a l'utilisateur (console et onglets de
+    # nouveau accessibles) plutot que de la laisser cachee derriere une barre
+    # de progression qui n'avancera plus. L'installation reprendra normalement
+    # au prochain demarrage, simplement sans etre pilotee par SPLYT.
+    try {
+        if ((Get-NovaVmPreferences -Name $Name).unattendPending) {
+            Save-NovaVmPreferences -Name $Name -UnattendPending "false" -UnattendStage "cancelled"
+        }
+    } catch { }
+
     $vm = Get-VM -Name $Name
     Write-NovaResult -Success $true -DataJson (ConvertTo-NovaVmDto -Vm $vm | ConvertTo-Json -Depth 8 -Compress)
 }

@@ -213,8 +213,23 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
         get => _unattendInstall;
         set
         {
-            if (SetProperty(ref _unattendInstall, value)) CreateCommand.RaiseCanExecuteChanged();
+            if (SetProperty(ref _unattendInstall, value))
+            {
+                CreateCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(ManualInstall));
+            }
         }
+    }
+
+    /// <summary>L'autre branche du choix, pour que les deux boutons radio se
+    /// pilotent l'un l'autre. Une paire de RadioButton lies a la MEME propriete
+    /// avec un convertisseur inverse ne fonctionne pas : IsChecked=false est
+    /// envoye avant IsChecked=true sur l'autre, et les deux se retrouvent
+    /// decoches. Deux proprietes miroir evitent ce va-et-vient.</summary>
+    public bool ManualInstall
+    {
+        get => !_unattendInstall;
+        set { if (value) UnattendInstall = false; }
     }
 
     public string UnattendUsername

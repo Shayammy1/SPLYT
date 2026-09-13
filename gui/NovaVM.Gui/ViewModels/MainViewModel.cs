@@ -269,7 +269,15 @@ public sealed class MainViewModel : ViewModelBase
         var dialog = new CreateVmDialogViewModel(_vmService, gpus, hostLimits);
         dialog.Created += (_, _) =>
         {
-            if (dialog.CreatedVm is not null) VmList.AddCreatedVm(dialog.CreatedVm);
+            if (dialog.CreatedVm is not null)
+            {
+                // Installation automatique : la progression ne s'affiche que sur la
+                // page des VMs, et la creation peut tres bien avoir ete lancee
+                // depuis l'accueil. Sans ca, l'utilisateur revenait sur une page
+                // ou il ne se passe visiblement rien, alors que Windows s'installe.
+                if (dialog.CreatedVm.UnattendPending) GoToVmList();
+                VmList.AddCreatedVm(dialog.CreatedVm);
+            }
             IsCreateDialogOpen = false;
         };
         dialog.Cancelled += (_, _) => IsCreateDialogOpen = false;
@@ -317,6 +325,12 @@ public sealed class MainViewModel : ViewModelBase
     /// connexions vmconnect.</summary>
     private void OpenConsoleWindow(Models.VirtualMachine vm)
     {
+        // Derniere barriere : une VM en cours d'installation automatique doit
+        // rester invisible, quelle que soit la voie par laquelle la demande de
+        // console arrive. C'est la promesse faite a l'utilisateur au moment du
+        // choix "installation automatique".
+        if (vm.UnattendPending) return;
+
         if (_consoleWindows.TryGetValue(vm.Name, out var existing))
         {
             if (existing.WindowState == System.Windows.WindowState.Minimized)
