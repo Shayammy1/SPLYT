@@ -26,22 +26,26 @@ public partial class UsageOverlayWindow : Window
 {
     private bool _allowClose;
 
-    public UsageOverlayWindow(Window? owner)
+    private readonly Window? _reference;
+
+    /// <param name="reference">La fenetre principale de SPLYT. Elle sert a savoir
+    /// SUR QUEL ECRAN se poser et QUAND disparaitre - mais elle n'est
+    /// deliberement pas declaree comme proprietaire (Owner) : Windows masque
+    /// toute fenetre appartenant a une autre des que celle-ci est reduite, et la
+    /// superposition s'evanouissait donc au premier clic sur "Reduire".</param>
+    public UsageOverlayWindow(Window? reference)
     {
         InitializeComponent();
+        _reference = reference;
         MouseLeftButtonDown += OnDrag;
         Loaded += (_, _) => MoveToTopRight();
         Closing += OnClosing;
 
-        if (owner is not null)
-        {
-            Owner = owner;
-
-            // Quand SPLYT se ferme, ses fenetres filles doivent suivre : sans cette
-            // levee de garde, le refus de fermeture laisserait une superposition
-            // orpheline a l'ecran, et l'application ne se terminerait jamais.
-            owner.Closing += (_, _) => _allowClose = true;
-        }
+        // Sans lien de propriete, plus rien ne referme la superposition quand
+        // SPLYT se ferme : il faut le faire nous-memes. Sans ca elle resterait
+        // seule a l'ecran, et l'application ne se terminerait jamais - WPF attend
+        // la fermeture de la derniere fenetre.
+        if (reference is not null) reference.Closing += (_, _) => CloseFromToggle();
     }
 
     /// <summary>Seule facon legitime de la retirer : le bouton de l'accueil.</summary>
@@ -61,7 +65,7 @@ public partial class UsageOverlayWindow : Window
     /// la que l'utilisateur regarde.</summary>
     private void MoveToTopRight()
     {
-        var reference = Owner ?? Application.Current?.MainWindow;
+        var reference = _reference ?? Application.Current?.MainWindow;
         var work = reference is null
             ? new Services.ScreenFit.Rect<double>(
                 SystemParameters.WorkArea.Left, SystemParameters.WorkArea.Top,
