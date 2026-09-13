@@ -489,6 +489,88 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    // --- Peripheriques USB confies a une VM ---------------------------------
+    //
+    // Le travail est coupe en deux parce que les deux moities ne peuvent pas
+    // cohabiter dans un meme appel : le partage cote hote demande l'ELEVATION
+    // (usbipd pose un pilote de filtre), et l'elevation est incompatible avec
+    // l'envoi des identifiants de la VM sur l'entree standard - voir le
+    // commentaire de RunElevatedAsync. L'appelant enchaine donc les deux.
+
+    /// <summary>Installe le serveur USB/IP sur l'hote. Aucun peripherique n'a
+    /// besoin d'etre branche.</summary>
+    public async Task<(UsbRedirectionSetupDto? Result, string? Error)> InstallUsbRedirectionAsync(
+        Action<string>? onProgress = null)
+    {
+        var result = await _runner.RunElevatedAsync("Install-NovaVmUsbRedirection.ps1", onProgress);
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Install-NovaVmUsbRedirection.ps1",
+            "Installation du serveur USB/IP sur l'hote : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<UsbRedirectionSetupDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
+    /// <summary>Installe le client USB/IP dans la VM et la tache qui rebranche les
+    /// peripheriques apres un redemarrage.</summary>
+    public async Task<(UsbGuestSetupDto? Result, string? Error)> InstallUsbGuestAsync(
+        string name, string username, string password)
+    {
+        var result = await _runner.RunWithCredentialAsync(
+            "Install-NovaVmUsbGuest.ps1", username, password, ("Name", name));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Install-NovaVmUsbGuest.ps1",
+            $"Installation du client USB/IP dans '{name}' : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<UsbGuestSetupDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
+    /// <summary>Peripheriques USB de l'hote et leur etat. Lecture seule, donc ni
+    /// elevation ni identifiants.</summary>
+    public async Task<UsbDeviceListDto?> GetUsbDevicesAsync()
+    {
+        var result = await RunSilentAsync("Get-NovaUsbDevices.ps1", "Peripheriques USB de l'hote");
+        return result.Success ? result.DeserializeData<UsbDeviceListDto>() : null;
+    }
+
+    /// <summary>Partage un peripherique de l'hote, ou le lui rend. Demande
+    /// l'elevation.</summary>
+    public async Task<(UsbShareResultDto? Result, string? Error)> SetUsbShareAsync(string busId, bool share)
+    {
+        var result = await _runner.RunElevatedAsync("Set-NovaUsbShare.ps1",
+            ("BusId", busId), ("Share", share ? "true" : "false"));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Set-NovaUsbShare.ps1",
+            $"Partage USB de '{busId}' ({(share ? "active" : "desactive")}) : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<UsbShareResultDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
+    /// <summary>Confie a la VM un peripherique deja partage, ou le lui retire.</summary>
+    public async Task<(UsbAttachResultDto? Result, string? Error)> SetVmUsbAttachAsync(
+        string name, string busId, bool attach, string username, string password)
+    {
+        var result = await _runner.RunWithCredentialAsync(
+            "Set-NovaVmUsbAttach.ps1", username, password,
+            ("Name", name), ("BusId", busId), ("Attach", attach ? "true" : "false"));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Set-NovaVmUsbAttach.ps1",
+            $"Peripherique USB '{busId}' {(attach ? "confie a" : "retire de")} '{name}' : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<UsbAttachResultDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     public async Task<HostLimits> GetHostLimitsAsync()
     {
         var result = await RunSilentAsync("Get-NovaVmHostMemoryLimits.ps1", "Capacites de l'hote (RAM/CPU)");

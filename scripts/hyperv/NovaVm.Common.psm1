@@ -228,6 +228,56 @@ function Get-NovaMoonlightPath {
     return $null
 }
 
+function Get-NovaUsbipdPath {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles "usbipd-win\usbipd.exe"),
+        (Join-Path ${env:ProgramFiles(x86)} "usbipd-win\usbipd.exe")
+    )
+    foreach ($path in $candidates) {
+        if ($path -and (Test-Path -LiteralPath $path)) { return $path }
+    }
+    # Retombee sur le PATH : une installation fraiche n'y est pas encore visible
+    # dans un processus deja lance, d'ou les chemins connus en premier.
+    $cmd = Get-Command usbipd -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
+# Adresse de l'HOTE telle que la VM peut la joindre : c'est celle que le client
+# USB/IP de l'invite doit contacter.
+#
+# On la deduit de l'adresse de la VM plutot que de la coder en dur : le
+# commutateur "Default Switch" de Hyper-V change de sous-reseau a chaque
+# redemarrage de l'hote, et un poste peut avoir plusieurs commutateurs. On
+# cherche donc, parmi les adresses de l'hote, celle qui partage le sous-reseau de
+# la VM - par construction, c'est la passerelle que l'invite sait joindre.
+function Get-NovaHostAddressForVm {
+    param([Parameter(Mandatory)][string]$VmIpAddress)
+
+    $vmBytes = ([System.Net.IPAddress]::Parse($VmIpAddress)).GetAddressBytes()
+
+    foreach ($addr in (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue)) {
+        if ($addr.IPAddress -eq '127.0.0.1') { continue }
+        $hostBytes = ([System.Net.IPAddress]::Parse($addr.IPAddress)).GetAddressBytes()
+
+        # Comparaison bit a bit sur la longueur de prefixe declaree, plutot qu'une
+        # comparaison des trois premiers octets : le Default Switch est en /20,
+        # donc deux adresses du meme sous-reseau peuvent differer des le 3e octet.
+        $bitsLeft = $addr.PrefixLength
+        $same = $true
+        for ($i = 0; $i -lt 4 -and $bitsLeft -gt 0; $i++) {
+            $take = [Math]::Min(8, $bitsLeft)
+            # Le -band 0xFF n'est pas decoratif : "0xFF -shl 4" vaut 4080, qui ne
+            # tient pas dans un octet et fait echouer la conversion.
+            $mask = [byte](((0xFF -shl (8 - $take)) -band 0xFF))
+            if (($vmBytes[$i] -band $mask) -ne ($hostBytes[$i] -band $mask)) { $same = $false; break }
+            $bitsLeft -= $take
+        }
+        if ($same) { return $addr.IPAddress }
+    }
+    return $null
+}
+
 # Debit video conseille, en kbit/s, pour un flux LOCAL (l'hote et la VM sont la meme
 # machine : pas de reseau physique a menager). Les valeurs par defaut de Moonlight
 # sont calibrees pour du Wi-Fi domestique et laissent enormement de qualite sur la
@@ -562,6 +612,8 @@ Export-ModuleMember -Function `
     Test-NovaVmHeartbeatOk, `
     Get-NovaVmIpAddress, `
     Get-NovaMoonlightPath, `
+    Get-NovaUsbipdPath, `
+    Get-NovaHostAddressForVm, `
     Get-NovaStreamBitrateKbps, `
     Get-NovaVmPreferences, `
     Save-NovaVmPreferences, `

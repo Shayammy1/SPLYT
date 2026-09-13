@@ -283,3 +283,72 @@ public sealed class DiagnosticsDto
     public string? GpuPermissionError { get; set; }
     public bool IsElevated { get; set; }
 }
+
+// --- Peripheriques USB confies a une VM (USB/IP) ----------------------------
+
+public sealed class UsbRedirectionSetupDto
+{
+    public bool Installed { get; set; }
+    public string? Path { get; set; }
+    public string? Version { get; set; }
+    public string? Message { get; set; }
+}
+
+public sealed class UsbGuestSetupDto
+{
+    public bool AlreadyInstalled { get; set; }
+
+    /// <summary>Etat de la tache qui rebranche les peripheriques au demarrage de
+    /// la VM ("Ready"), utile pour diagnostiquer un rebranchement qui ne se fait
+    /// plus.</summary>
+    public string? AutoReattachTask { get; set; }
+
+    public string? Message { get; set; }
+}
+
+public sealed class UsbDeviceDto
+{
+    /// <summary>Identifiant du PORT USB, pas du peripherique : rebranche ailleurs,
+    /// le meme materiel change de BusId et doit etre repartage.</summary>
+    public string? BusId { get; set; }
+
+    public string? InstanceId { get; set; }
+    public string? Description { get; set; }
+
+    /// <summary>Partage par l'hote, donc disponible pour une VM - mais pas encore
+    /// pris par elle.</summary>
+    public bool Shared { get; set; }
+
+    /// <summary>Reellement pris par une VM : a ce moment seulement, l'hote ne le
+    /// voit plus du tout.</summary>
+    public bool Attached { get; set; }
+
+    public string? ClientIp { get; set; }
+
+    /// <summary>Ressemble a un peripherique d'entree (souris, clavier...). Sert a
+    /// mettre en avant ce que l'utilisateur cherche, la liste brute melangeant
+    /// aussi webcams, cles USB et cartes son.</summary>
+    public bool LikelyInput { get; set; }
+}
+
+public sealed class UsbDeviceListDto
+{
+    public bool ServerInstalled { get; set; }
+    public List<UsbDeviceDto>? Devices { get; set; }
+}
+
+public sealed class UsbShareResultDto
+{
+    public string? BusId { get; set; }
+    public string? Description { get; set; }
+    public bool Shared { get; set; }
+    public string? Message { get; set; }
+}
+
+public sealed class UsbAttachResultDto
+{
+    public string? BusId { get; set; }
+    public bool Attached { get; set; }
+    public string? HostIp { get; set; }
+    public string? Message { get; set; }
+}

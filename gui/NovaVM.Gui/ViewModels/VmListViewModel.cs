@@ -27,6 +27,8 @@ public sealed class VmListViewModel : ViewModelBase
     private string _vddUsername = "";
     private bool _vddRememberCredentials;
     private string? _vddResultText;
+    private bool _usbServerMissing;
+    private string? _usbStatusText;
     private string _gamingUsername = "";
     private bool _gamingRememberCredentials;
     private string? _gamingResultText;
@@ -70,6 +72,12 @@ public sealed class VmListViewModel : ViewModelBase
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         VddInstallCommand = new AsyncRelayCommand(VddInstallAsync,
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
+        RefreshUsbDevicesCommand = new AsyncRelayCommand(RefreshUsbDevicesAsync);
+        InstallUsbRedirectionCommand = new AsyncRelayCommand(InstallUsbRedirectionAsync);
+        // Confier un peripherique exige une VM demarree : le rattachement se fait
+        // DANS l'invite, par PowerShell Direct.
+        ToggleUsbDeviceCommand = new AsyncRelayCommand<UsbDeviceItemViewModel>(
+            ToggleUsbDeviceAsync, _ => SelectedVm is { State: VmState.Running });
         AutoLogonEnableCommand = new AsyncRelayCommand(() => AutoLogonRunAsync(disable: false),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         AutoLogonDisableCommand = new AsyncRelayCommand(() => AutoLogonRunAsync(disable: true),
@@ -234,6 +242,12 @@ public sealed class VmListViewModel : ViewModelBase
                 OnPropertyChanged(nameof(CanRunSplytSetup));
                 OnPropertyChanged(nameof(CannotRunSplytSetup));
                 RaiseAllCanExecuteChanged();
+
+                // Liste des peripheriques USB chargee d'avance : arriver sur
+                // l'onglet Peripheriques pour y trouver une liste vide, qu'il faut
+                // penser a actualiser, donne l'impression qu'aucun materiel n'est
+                // detecte. Lecture seule et rapide, donc sans risque ici.
+                _ = RefreshUsbDevicesAsync();
             }
         }
     }
@@ -472,6 +486,30 @@ public sealed class VmListViewModel : ViewModelBase
     public AsyncRelayCommand VddEnableCommand { get; }
     public AsyncRelayCommand VddDisableCommand { get; }
     public AsyncRelayCommand VddInstallCommand { get; }
+
+    // --- Onglet "Peripheriques" : USB confie a la VM ------------------------
+    //
+    // Confier un peripherique a la VM le RETIRE de l'hote. C'est tout l'interet :
+    // Windows fond toutes les souris en un seul curseur, donc tant que l'hote
+    // voit la souris, elle pilote l'hote. Voir Set-NovaVmUsbAttach.ps1.
+
+    public ObservableCollection<UsbDeviceItemViewModel> UsbDevices { get; } = new();
+
+    /// <summary>Vrai tant que le serveur USB/IP n'est pas installe sur l'hote :
+    /// il n'y a alors rien a lister, et l'onglet propose de l'installer.</summary>
+    public bool UsbServerMissing
+    {
+        get => _usbServerMissing;
+        private set { if (SetProperty(ref _usbServerMissing, value)) OnPropertyChanged(nameof(HasNoUsbDevices)); }
+    }
+
+    public bool HasNoUsbDevices => !UsbServerMissing && UsbDevices.Count == 0;
+
+    public string? UsbStatusText { get => _usbStatusText; private set => SetProperty(ref _usbStatusText, value); }
+
+    public AsyncRelayCommand RefreshUsbDevicesCommand { get; }
+    public AsyncRelayCommand InstallUsbRedirectionCommand { get; }
+    public AsyncRelayCommand<UsbDeviceItemViewModel> ToggleUsbDeviceCommand { get; }
 
     /// <summary>Ouverture de session automatique dans la VM : le remede direct a
     /// l'ecran noir du streaming, sans repasser par la configuration complete.</summary>
@@ -1003,6 +1041,97 @@ public sealed class VmListViewModel : ViewModelBase
     /// redemarrage de la VM et une recopie du pilote graphique - pour une valeur de
     /// registre. Ceux qui tombaient sur l'ecran noir n'avaient donc aucun remede
     /// proportionne. Reutilise les identifiants deja saisis pour le VDD.</summary>
+    // --- Peripheriques USB --------------------------------------------------
+
+    private async Task RefreshUsbDevicesAsync()
+    {
+        var list = await _vmService.GetUsbDevicesAsync();
+        UsbDevices.Clear();
+
+        if (list is null)
+        {
+            UsbServerMissing = true;
+            OnPropertyChanged(nameof(HasNoUsbDevices));
+            return;
+        }
+
+        UsbServerMissing = !list.ServerInstalled;
+        if (list.Devices is not null)
+        {
+            // Les peripheriques d'entree d'abord : c'est une souris ou un clavier
+            // que l'utilisateur vient chercher ici, pas sa cle USB.
+            foreach (var device in list.Devices.OrderByDescending(d => d.LikelyInput).ThenBy(d => d.BusId))
+            {
+                UsbDevices.Add(new UsbDeviceItemViewModel(device));
+            }
+        }
+        OnPropertyChanged(nameof(HasNoUsbDevices));
+    }
+
+    private async Task InstallUsbRedirectionAsync()
+    {
+        UsbStatusText = Loc.Get("VmList_Usb_Installing");
+        var (result, error) = await _vmService.InstallUsbRedirectionAsync(
+            step => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => UsbStatusText = step));
+
+        UsbStatusText = result?.Message ?? error ?? Loc.Get("VmList_Usb_InstallFailed");
+        await RefreshUsbDevicesAsync();
+    }
+
+    /// <summary>Donne le peripherique a la VM, ou le rend a l'hote.
+    ///
+    /// Deux appels et non un seul : le partage cote hote demande l'elevation
+    /// (UAC), le rattachement cote invite demande les identifiants Windows de la
+    /// VM, et les deux ne peuvent pas voyager dans le meme processus - voir
+    /// NovaVmService.InstallUsbRedirectionAsync.</summary>
+    private async Task ToggleUsbDeviceAsync(UsbDeviceItemViewModel device)
+    {
+        if (SelectedVm is null) return;
+
+        var password = VddGetPassword?.Invoke() ?? "";
+        if (string.IsNullOrEmpty(password))
+        {
+            UsbStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
+            return;
+        }
+
+        var giveToVm = !device.Attached;
+        UsbStatusText = Loc.Get(giveToVm ? "VmList_Usb_Giving" : "VmList_Usb_Returning", device.Description);
+
+        if (giveToVm)
+        {
+            // Partager d'abord : sans ca l'invite n'a rien a saisir.
+            var (shared, shareError) = await _vmService.SetUsbShareAsync(device.BusId, share: true);
+            if (shared is null)
+            {
+                UsbStatusText = shareError ?? Loc.Get("VmList_Usb_ShareFailed");
+                return;
+            }
+        }
+
+        var (attach, attachError) = await _vmService.SetVmUsbAttachAsync(
+            SelectedVm.Name, device.BusId, giveToVm, ResolveVddUsername(VddUsername), password);
+
+        if (attach is null)
+        {
+            UsbStatusText = attachError ?? Loc.Get("VmList_Usb_AttachFailed");
+            // Le partage a peut-etre reussi alors que le rattachement a echoue :
+            // on relit l'etat reel plutot que de laisser une ligne qui ment.
+            await RefreshUsbDevicesAsync();
+            return;
+        }
+
+        if (!giveToVm)
+        {
+            // Rendre vraiment le peripherique a l'hote : detache cote invite ne
+            // suffit pas, il reste "partage" et donc saisissable a nouveau.
+            await _vmService.SetUsbShareAsync(device.BusId, share: false);
+        }
+
+        UsbStatusText = attach.Message;
+        await RefreshUsbDevicesAsync();
+    }
+
     private async Task AutoLogonRunAsync(bool disable)
     {
         if (SelectedVm is null) return;

@@ -725,6 +725,87 @@
                             </ScrollViewer>
                         </TabItem>
 
+                        <!-- Peripheriques USB confies a la VM. Un peripherique donne
+                             a la VM DISPARAIT de l'hote : c'est ce qui permet d'avoir
+                             une souris pour chaque machine, utilisables en meme temps. -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="UsbPlug24" FontSize="14" Margin="0,0,7,0" />
+                                    <TextBlock Text="{markup:Tr VmList_Tab_Usb}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="0,16,16,16" MaxWidth="640" HorizontalAlignment="Left">
+
+                                <TextBlock Text="{markup:Tr VmList_Usb_Intro}" TextWrapping="Wrap" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,14" />
+
+                                <!-- Serveur absent : rien a lister, on renvoie vers le bouton SPLYT
+                                     qui pose toute la plomberie. -->
+                                <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,14"
+                                        Visibility="{Binding UsbServerMissing, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{markup:Tr VmList_Usb_NotInstalled}" TextWrapping="Wrap"
+                                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10" />
+                                        <Button Content="{markup:Tr VmList_Usb_Install}" Style="{StaticResource AccentButtonStyle}"
+                                                HorizontalAlignment="Left" Command="{Binding InstallUsbRedirectionCommand}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <Button Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,8"
+                                            Content="{markup:Tr VmList_Usb_Refresh}"
+                                            Command="{Binding RefreshUsbDevicesCommand}" />
+                                </WrapPanel>
+
+                                <ItemsControl ItemsSource="{Binding UsbDevices}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
+                                                                   FontWeight="SemiBold" FontSize="13"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                                        <TextBlock Text="{Binding IdentityText}" TextWrapping="Wrap" FontSize="11"
+                                                                   FontFamily="Consolas"
+                                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0" />
+                                                        <TextBlock Text="{Binding StateText}" TextWrapping="Wrap" FontSize="11"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" />
+                                                    </StackPanel>
+
+                                                    <Button Grid.Column="1" VerticalAlignment="Center"
+                                                            Content="{Binding ActionLabel}"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            Command="{Binding DataContext.ToggleUsbDeviceCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="{markup:Tr VmList_Usb_Empty}" TextWrapping="Wrap" FontSize="12"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Visibility="{Binding HasNoUsbDevices, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                                <TextBlock Text="{Binding UsbStatusText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,12,0,0"
+                                           Visibility="{Binding UsbStatusText, Converter={StaticResource NullToVisibilityConverter}}" />
+
+                                <TextBlock Text="{markup:Tr VmList_Usb_PortWarning}" TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,14,0,0" />
+                            </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
                     </TabControl>
                 </DockPanel>
             </Border>

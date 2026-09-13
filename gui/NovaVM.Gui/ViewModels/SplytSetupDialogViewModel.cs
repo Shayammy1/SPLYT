@@ -109,7 +109,7 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     /// liste se resynchronise sans attendre le rafraichissement periodique.</summary>
     public event EventHandler? VmChanged;
 
-    private const int TotalSteps = 8;
+    private const int TotalSteps = 9;
 
     private async Task RunAsync()
     {
@@ -241,6 +241,28 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
                     ? streaming.Message ?? Loc.Get("Splyt_Report_StreamingOk")
                     : Loc.Get("Splyt_Report_StreamingFailed", streamingError));
                 paired = streaming?.Paired == true;
+            }
+
+            // --- 9. Redirection USB : pouvoir dedier une souris/clavier a la VM ---
+            //
+            // Seule la PLOMBERIE est posee ici (serveur cote hote, client dans la
+            // VM, tache de rebranchement). Aucun peripherique n'est saisi : le
+            // choix se fait ensuite dans l'onglet Peripheriques, et il demande que
+            // le materiel soit branche - ce qu'on ne peut pas supposer au moment
+            // d'une configuration automatique.
+            Advance(++step, "Splyt_Step_Usb");
+            var (usbHost, usbHostError) = await _vmService.InstallUsbRedirectionAsync(OnStepProgress);
+            if (usbHost is null)
+            {
+                report.AppendLine(Loc.Get("Splyt_Report_UsbHostFailed", usbHostError));
+            }
+            else
+            {
+                var (usbGuest, usbGuestError) = await _vmService.InstallUsbGuestAsync(
+                    Vm.Name, ResolveUsername(Username), password);
+                report.AppendLine(usbGuest is not null
+                    ? Loc.Get("Splyt_Report_UsbOk")
+                    : Loc.Get("Splyt_Report_UsbGuestFailed", usbGuestError));
             }
 
             if (RememberCredentials) VmCredentialStore.Save(Vm.Name, Username, password);
