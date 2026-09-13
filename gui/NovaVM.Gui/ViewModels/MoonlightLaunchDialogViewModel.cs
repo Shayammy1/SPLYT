@@ -32,8 +32,14 @@ public sealed class MoonlightLaunchDialogViewModel : ViewModelBase
 
     private static readonly int[] SupportedRefreshRates = { 60, 90, 100, 120, 144 };
 
+    /// <summary>Un ecran de l'hote, tel qu'il apparait dans la liste.</summary>
+    /// <param name="DeviceName">Identifiant Windows transmis au script ; l'etiquette
+    /// n'est faite que pour etre lue.</param>
+    public sealed record MonitorChoice(string DeviceName, string Label);
+
     private string _selectedResolution;
     private int _selectedRefreshRate;
+    private MonitorChoice? _selectedMonitor;
 
     public MoonlightLaunchDialogViewModel(string vmName, string currentResolution, int currentRefreshRate)
     {
@@ -42,6 +48,7 @@ public sealed class MoonlightLaunchDialogViewModel : ViewModelBase
         Subtitle = Loc.Get("Moonlight_Dialog_Subtitle", vmName);
         ResolutionLabel = Loc.Get("Moonlight_Dialog_Resolution");
         RefreshRateLabel = Loc.Get("Moonlight_Dialog_RefreshRate");
+        MonitorLabel = Loc.Get("Moonlight_Dialog_Monitor");
         Hint = Loc.Get("Moonlight_Dialog_Hint");
         LaunchLabel = Loc.Get("Moonlight_Dialog_Launch");
         CancelLabel = Loc.Get("Common_Cancel");
@@ -56,6 +63,18 @@ public sealed class MoonlightLaunchDialogViewModel : ViewModelBase
         _selectedResolution = Resolutions.Contains(currentResolution) ? currentResolution : "1920x1080";
         _selectedRefreshRate = SupportedRefreshRates.Contains(currentRefreshRate) ? currentRefreshRate : 120;
 
+        // Ecrans de l'hote. Le premier de la liste est l'ecran principal : c'est la
+        // ou Moonlight se serait ouvert de lui-meme, donc le choix par defaut le
+        // moins surprenant. Sur une machine a un seul ecran, la liste n'apparait
+        // meme pas (voir HasMultipleMonitors) : il n'y aurait rien a y choisir.
+        Monitors = Services.HostMonitors.Enumerate()
+            .Select(m => new MonitorChoice(
+                m.DeviceName,
+                Loc.Get(m.IsPrimary ? "Moonlight_Dialog_MonitorPrimary" : "Moonlight_Dialog_MonitorItem",
+                    m.Number, m.Width, m.Height)))
+            .ToArray();
+        _selectedMonitor = Monitors.FirstOrDefault();
+
         LaunchCommand = new RelayCommand(() => Close(true));
         CancelCommand = new RelayCommand(() => Close(false));
     }
@@ -65,15 +84,21 @@ public sealed class MoonlightLaunchDialogViewModel : ViewModelBase
     public string Subtitle { get; }
     public string ResolutionLabel { get; }
     public string RefreshRateLabel { get; }
+    public string MonitorLabel { get; }
     public string Hint { get; }
     public string LaunchLabel { get; }
     public string CancelLabel { get; }
 
     public IReadOnlyList<string> Resolutions { get; }
     public IReadOnlyList<int> RefreshRates { get; }
+    public IReadOnlyList<MonitorChoice> Monitors { get; }
+
+    /// <summary>Faux sur une machine a ecran unique : la liste est alors masquee.</summary>
+    public bool HasMultipleMonitors => Monitors.Count > 1;
 
     public string SelectedResolution { get => _selectedResolution; set => SetProperty(ref _selectedResolution, value); }
     public int SelectedRefreshRate { get => _selectedRefreshRate; set => SetProperty(ref _selectedRefreshRate, value); }
+    public MonitorChoice? SelectedMonitor { get => _selectedMonitor; set => SetProperty(ref _selectedMonitor, value); }
 
     public RelayCommand LaunchCommand { get; }
     public RelayCommand CancelCommand { get; }

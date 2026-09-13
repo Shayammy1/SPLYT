@@ -131,7 +131,11 @@ public sealed class MainViewModel : ViewModelBase
         {
             IsMoonlightLaunchDialogOpen = false;
             MoonlightLaunchDialog = null;
-            if (launch) await VmList.LaunchWithMoonlightAsync(dialog.SelectedResolution, dialog.SelectedRefreshRate);
+            if (launch)
+            {
+                await VmList.LaunchWithMoonlightAsync(
+                    dialog.SelectedResolution, dialog.SelectedRefreshRate, dialog.SelectedMonitor?.DeviceName);
+            }
         };
 
         MoonlightLaunchDialog = dialog;

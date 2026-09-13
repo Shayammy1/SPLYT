@@ -525,7 +525,9 @@ public sealed class VmListViewModel : ViewModelBase
         MoonlightLaunchRequested?.Invoke(this, SelectedVm);
     }
 
-    public async Task LaunchWithMoonlightAsync(string resolution, int fps)
+    /// <summary>L'ecran est celui de l'hote sur lequel afficher le flux ; null
+    /// laisse Moonlight s'ouvrir ou bon lui semble, comme avant.</summary>
+    public async Task LaunchWithMoonlightAsync(string resolution, int fps, string? monitorDeviceName = null)
     {
         if (SelectedVm is null) return;
         ErrorMessage = null;
@@ -534,7 +536,7 @@ public sealed class VmListViewModel : ViewModelBase
         try
         {
             var (result, error) = await _vmService.StartWithMoonlightAsync(
-                SelectedVm.Name, fps, resolution, OnMoonlightProgress);
+                SelectedVm.Name, fps, resolution, monitorDeviceName, OnMoonlightProgress);
 
             MoonlightStatus = result is not null
                 ? result.Message

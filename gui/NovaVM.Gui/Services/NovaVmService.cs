@@ -319,11 +319,25 @@ public sealed class NovaVmService
     /// Start-NovaVmMoonlight.ps1. Ne demande aucun identifiant : tout se passe cote
     /// hote et via Hyper-V.</summary>
     public async Task<(MoonlightLaunchResultDto? Result, string? Error)> StartWithMoonlightAsync(
-        string name, int fps, string resolution, Action<string>? onProgress = null)
+        string name, int fps, string resolution, string? monitorDeviceName = null,
+        Action<string>? onProgress = null)
     {
+        var parameters = new List<(string, string)>
+        {
+            ("Name", name),
+            ("Fps", fps.ToString(CultureInfo.InvariantCulture)),
+            ("Resolution", resolution),
+        };
+
+        // Omis quand l'hote n'a qu'un ecran : le script laisse alors Moonlight
+        // s'ouvrir ou il veut, sans aller chercher sa fenetre pour la deplacer.
+        if (!string.IsNullOrWhiteSpace(monitorDeviceName))
+        {
+            parameters.Add(("MonitorDeviceName", monitorDeviceName));
+        }
+
         var result = await RunAsyncCore("Start-NovaVmMoonlight.ps1", $"Lancement de '{name}' avec Moonlight",
-            silent: false, onProgress,
-            ("Name", name), ("Fps", fps.ToString(CultureInfo.InvariantCulture)), ("Resolution", resolution));
+            silent: false, onProgress, parameters.ToArray());
 
         if (!result.Success) return (null, result.Error ?? result.RawError);
         var dto = result.DeserializeData<MoonlightLaunchResultDto>();

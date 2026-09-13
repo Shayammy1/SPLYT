@@ -31,6 +31,15 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
+                <!-- Choix de l'ecran : masque sur une machine a ecran unique, ou il
+                     n'y aurait qu'une entree a choisir. -->
+                <StackPanel Visibility="{Binding HasMultipleMonitors, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="{Binding MonitorLabel}" FontSize="12" Margin="0,0,0,6"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                    <ComboBox ItemsSource="{Binding Monitors}" SelectedItem="{Binding SelectedMonitor}"
+                              DisplayMemberPath="Label" Margin="0,0,0,14" />
+                </StackPanel>
+
                 <TextBlock Text="{Binding Hint}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,20"
                            Foreground="{StaticResource TextMutedBrush}" />
 
