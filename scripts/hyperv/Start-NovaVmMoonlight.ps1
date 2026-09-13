@@ -96,6 +96,10 @@ public class NovaMoonlightWindow {
     static extern bool MoveWindow(IntPtr hWnd, int x, int y, int w, int h, bool repaint);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool IsWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
 
     const int ENUM_CURRENT_SETTINGS = -1;
 
@@ -153,10 +157,36 @@ public class NovaMoonlightWindow {
         return _found;
     }
 
+    /// <summary>Deplace la fenetre SANS la mettre au premier plan : la passer devant
+    /// lui ferait capturer la souris de l'hote, qui partirait alors dans la VM.</summary>
     public static bool MoveTo(IntPtr window, int x, int y, int width, int height) {
-        bool moved = MoveWindow(window, x, y, width, height, true);
-        if (moved) SetForegroundWindow(window);
-        return moved;
+        return MoveWindow(window, x, y, width, height, true);
+    }
+
+    public static IntPtr Foreground() { return GetForegroundWindow(); }
+
+    /// <summary>Redonne le premier plan a une fenetre de l'hote.
+    ///
+    /// Windows refuse SetForegroundWindow a un processus qui n'est pas deja
+    /// devant, pour empecher les applications de voler le focus. Le detour
+    /// habituel est de rattacher temporairement notre file d'entree a celle de la
+    /// fenetre au premier plan et a celle de la cible : la demande vient alors
+    /// "de l'interieur" et passe.</summary>
+    public static bool RestoreForeground(IntPtr target) {
+        if (target == IntPtr.Zero || !IsWindow(target)) return false;
+
+        uint dummy;
+        uint targetThread = GetWindowThreadProcessId(target, out dummy);
+        uint currentThread = GetCurrentThreadId();
+        IntPtr front = GetForegroundWindow();
+        uint frontThread = GetWindowThreadProcessId(front, out dummy);
+
+        AttachThreadInput(currentThread, frontThread, true);
+        AttachThreadInput(currentThread, targetThread, true);
+        bool ok = SetForegroundWindow(target);
+        AttachThreadInput(currentThread, targetThread, false);
+        AttachThreadInput(currentThread, frontThread, false);
+        return ok;
     }
 }
 "@
@@ -247,41 +277,79 @@ Invoke-NovaAction {
     #
     # Pour diagnostiquer un lancement qui ne donne rien, Moonlight tient de toute
     # facon son propre journal dans %TEMP%\Moonlight-*.log.
+    # La VM a-t-elle ses propres souris/clavier ? Si oui, Moonlight ne doit pas
+    # garder le premier plan : en le gardant il capture la souris de l'HOTE, qui
+    # part alors elle aussi dans la VM - les deux souris pilotent la meme machine,
+    # et l'utilisateur doit faire un Ctrl+Alt+Suppr pour que Moonlight lache prise.
+    # Avec un peripherique dedie, l'invite a de quoi etre pilote sans ce vol de
+    # focus ; sans peripherique dedie, au contraire, le focus est le SEUL moyen de
+    # se servir de la VM, et on le laisse donc a Moonlight.
+    [NovaMoonlightWindow]::MakeDpiAware()
+    $vmOwnsInput = $false
+    $usbipdPath = Get-NovaUsbipdPath
+    if ($usbipdPath) {
+        try {
+            $usbState = (& $usbipdPath state 2>&1 | Out-String) | ConvertFrom-Json
+            $vmOwnsInput = @($usbState.Devices | Where-Object { "$($_.ClientIPAddress)" -eq $vmIp }).Count -gt 0
+        } catch {
+            # Etat illisible : on se comporte comme sans peripherique dedie.
+        }
+    }
+    $previousForeground = [NovaMoonlightWindow]::Foreground()
+
     $moonlight = Start-Process -FilePath $moonlightPath -ArgumentList $arguments -PassThru
 
     # Placement sur l'ecran demande. Best-effort de bout en bout : un flux qui
     # s'affiche sur le mauvais ecran reste un flux qui marche, alors qu'un echec
     # ici ne doit surtout pas faire echouer le lancement.
     $monitorMessage = ""
-    if (-not [string]::IsNullOrWhiteSpace($MonitorDeviceName)) {
-        # "\\.\DISPLAY2" ne dit rien a personne : on parle de l'ecran 2, comme le
-        # font la fenetre de choix et les parametres Windows.
-        $monitorDigits = ($MonitorDeviceName -replace '\D', '')
-        $monitorLabel = if ($monitorDigits) { "l'ecran $monitorDigits" } else { "l'ecran choisi" }
+    $focusMessage = ""
+    $wantsPlacement = -not [string]::IsNullOrWhiteSpace($MonitorDeviceName)
 
-        Write-NovaProgress "Placement sur l'ecran choisi"
-        [NovaMoonlightWindow]::MakeDpiAware()
-        $bounds = [NovaMoonlightWindow]::GetMonitorBounds($MonitorDeviceName)
-        if (-not $bounds) {
-            $monitorMessage = " Moonlight reste ou il s'est ouvert : $monitorLabel n'est plus disponible."
-        } else {
-            # La fenetre de flux n'existe qu'une fois la connexion etablie, ce qui
-            # prend plusieurs secondes : on la guette au lieu de la chercher une
-            # seule fois.
-            $window = [IntPtr]::Zero
-            $deadline = (Get-Date).AddSeconds(45)
-            while ((Get-Date) -lt $deadline -and $window -eq [IntPtr]::Zero) {
-                if ($moonlight.HasExited) { break }
-                $window = [NovaMoonlightWindow]::FindStreamWindow(@($moonlight.Id))
-                if ($window -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 500 }
-            }
+    if ($wantsPlacement -or $vmOwnsInput) {
+        # La fenetre de flux n'existe qu'une fois la connexion etablie, ce qui
+        # prend plusieurs secondes : on la guette au lieu de la chercher une seule
+        # fois. Cette attente sert aux deux traitements qui suivent.
+        Write-NovaProgress "Attente de la fenetre de Moonlight"
+        $window = [IntPtr]::Zero
+        $deadline = (Get-Date).AddSeconds(45)
+        while ((Get-Date) -lt $deadline -and $window -eq [IntPtr]::Zero) {
+            if ($moonlight.HasExited) { break }
+            $window = [NovaMoonlightWindow]::FindStreamWindow(@($moonlight.Id))
+            if ($window -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 500 }
+        }
 
-            if ($window -eq [IntPtr]::Zero) {
+        # --- Placement sur l'ecran demande ---------------------------------
+        # Best-effort de bout en bout : un flux qui s'affiche sur le mauvais ecran
+        # reste un flux qui marche, alors qu'un echec ici ne doit surtout pas
+        # faire echouer le lancement.
+        if ($wantsPlacement) {
+            # "\\.\DISPLAY2" ne dit rien a personne : on parle de l'ecran 2, comme
+            # le font la fenetre de choix et les parametres Windows.
+            $monitorDigits = ($MonitorDeviceName -replace '\D', '')
+            $monitorLabel = if ($monitorDigits) { "l'ecran $monitorDigits" } else { "l'ecran choisi" }
+
+            $bounds = [NovaMoonlightWindow]::GetMonitorBounds($MonitorDeviceName)
+            if (-not $bounds) {
+                $monitorMessage = " Moonlight reste ou il s'est ouvert : $monitorLabel n'est plus disponible."
+            } elseif ($window -eq [IntPtr]::Zero) {
                 $monitorMessage = " La fenetre de Moonlight n'a pas ete trouvee a temps : elle reste sur son ecran d'origine."
             } elseif ([NovaMoonlightWindow]::MoveTo($window, $bounds[0], $bounds[1], $bounds[2], $bounds[3])) {
                 $monitorMessage = " Affiche sur $monitorLabel."
             } else {
                 $monitorMessage = " Le deplacement vers $monitorLabel a echoue."
+            }
+        }
+
+        # --- Restitution du premier plan a l'hote ---------------------------
+        if ($vmOwnsInput -and $window -ne [IntPtr]::Zero) {
+            Write-NovaProgress "Restitution du clavier et de la souris a l'hote"
+            # Un instant de repit : Moonlight se met au premier plan de lui-meme
+            # peu apres l'ouverture de sa fenetre. Reprendre le focus trop tot le
+            # lui rendrait aussitot.
+            Start-Sleep -Seconds 2
+            if ([NovaMoonlightWindow]::RestoreForeground($previousForeground)) {
+                $focusMessage = " La souris et le clavier de l'hote lui restent acquis : la VM a les siens."
             }
         }
     }
@@ -293,7 +361,7 @@ Invoke-NovaAction {
         bitrateKbps = $BitrateKbps
         appName     = $AppName
         monitor     = $MonitorDeviceName
-        message     = "Moonlight lance sur $vmIp en $Resolution a $Fps Hz, debit $([int]($BitrateKbps / 1000)) Mbit/s, 4:4:4 active.$monitorMessage"
+        message     = "Moonlight lance sur $vmIp en $Resolution a $Fps Hz, debit $([int]($BitrateKbps / 1000)) Mbit/s, 4:4:4 active.$monitorMessage$focusMessage"
     }
     Write-NovaResult -Success $true -DataJson ([pscustomobject]$result | ConvertTo-Json -Compress)
 }
