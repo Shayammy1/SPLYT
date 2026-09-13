@@ -21,12 +21,18 @@ param(
     # une chaine "true"/"false" recue en ligne de commande - voir tous les
     # autres scripts de ce dossier). Statique par defaut : la RAM configuree
     # dans SPLYT reste toujours entierement assignee a la VM, sans surprise.
-    [string]$DynamicMemoryEnabled = "false"
+    [string]$DynamicMemoryEnabled = "false",
+    # "true" = installer Windows sans aucune intervention. Les identifiants du
+    # compte Windows a creer sont alors lus sur l'ENTREE STANDARD (jamais en
+    # argument, jamais journalises), comme partout ailleurs dans SPLYT.
+    [string]$Unattend = "false"
 )
 
 $dynamicMemoryBool = $DynamicMemoryEnabled -eq "true"
+$unattendBool = $Unattend -eq "true"
 
 Import-Module (Join-Path $PSScriptRoot "NovaVm.Common.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "NovaVm.Unattend.psm1") -Force
 
 function New-NovaVhdWithRetry {
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][int64]$SizeBytes)
@@ -55,6 +61,28 @@ Invoke-NovaAction {
     }
     if (-not [string]::IsNullOrWhiteSpace($IsoPath) -and -not (Test-Path -LiteralPath $IsoPath -PathType Leaf)) {
         throw "Le fichier ISO est introuvable : $IsoPath"
+    }
+
+    $unattendUsername = ""
+    $unattendPassword = ""
+    if ($unattendBool) {
+        if ([string]::IsNullOrWhiteSpace($IsoPath)) {
+            throw "L'installation automatique demande une image ISO de Windows : il n'y a rien a installer sans elle."
+        }
+        $unattendUsername = [Console]::In.ReadLine()
+        $unattendPassword = [Console]::In.ReadLine()
+        if ([string]::IsNullOrEmpty($unattendUsername)) {
+            throw "Nom d'utilisateur manquant pour l'installation automatique."
+        }
+        # Windows refuse un compte local dont le nom depasse 20 caracteres ou
+        # reprend un nom reserve : mieux vaut le dire ici que laisser
+        # l'installation s'arreter au bout de vingt minutes.
+        if ($unattendUsername.Length -gt 20) {
+            throw "Le nom d'utilisateur ne peut pas depasser 20 caracteres."
+        }
+        if ($unattendUsername -match '[\\/:*?"<>|\[\];=,+]') {
+            throw "Le nom d'utilisateur contient un caractere que Windows refuse."
+        }
     }
     $hostMemory = Get-NovaHostMemoryInfo
     if ($MemoryMb -gt $hostMemory.maxVmMemoryMb) {
@@ -86,6 +114,15 @@ Invoke-NovaAction {
         $dvd = $null
         if (-not [string]::IsNullOrWhiteSpace($IsoPath)) {
             $dvd = Add-VMDvdDrive -VMName $Name -Path $IsoPath -Passthru -ErrorAction Stop
+        }
+
+        # Installation sans intervention : un second lecteur DVD porte le fichier
+        # de reponses. Le programme d'installation le cherche de lui-meme sur tous
+        # les lecteurs amovibles, l'ISO de Windows n'est donc pas touchee.
+        if ($unattendBool) {
+            Write-NovaProgress "Preparation de l'installation automatique"
+            $answerIso = New-NovaUnattendIso -VmName $Name -Username $unattendUsername -Password $unattendPassword
+            Add-VMDvdDrive -VMName $Name -Path $answerIso -ErrorAction Stop | Out-Null
         }
 
         Write-NovaProgress "Configuration du processeur et de la memoire"

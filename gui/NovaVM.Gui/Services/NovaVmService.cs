@@ -66,9 +66,13 @@ public sealed class NovaVmService
     /// immediatement dans le dialogue de creation.</summary>
     public async Task<(VirtualMachine? Vm, string? Error)> CreateVmAsync(
         string name, int cpu, long memoryMb, int diskSizeGb,
-        string? gpuName, int gpuVramMb, string? isoPath, bool dynamicMemoryEnabled = false, Action<string>? onProgress = null)
+        string? gpuName, int gpuVramMb, string? isoPath, bool dynamicMemoryEnabled = false,
+        Action<string>? onProgress = null,
+        string? unattendUsername = null, string? unattendPassword = null)
     {
-        var result = await RunAsyncCore("New-NovaVm.ps1", $"Creation de la VM '{name}'", silent: false, onProgress,
+        var unattend = !string.IsNullOrWhiteSpace(unattendUsername);
+        var parameters = new (string, string)[]
+        {
             ("Name", name),
             ("Cpu", cpu.ToString(CultureInfo.InvariantCulture)),
             ("MemoryMb", memoryMb.ToString(CultureInfo.InvariantCulture)),
@@ -76,7 +80,23 @@ public sealed class NovaVmService
             ("GpuName", gpuName ?? ""),
             ("GpuVramMb", gpuVramMb.ToString(CultureInfo.InvariantCulture)),
             ("IsoPath", isoPath ?? ""),
-            ("DynamicMemoryEnabled", dynamicMemoryEnabled ? "true" : "false"));
+            ("DynamicMemoryEnabled", dynamicMemoryEnabled ? "true" : "false"),
+            ("Unattend", unattend ? "true" : "false"),
+        };
+
+        // Installation automatique : le compte Windows a creer voyage par l'entree
+        // standard, jamais en argument - le fichier de reponses le porte ensuite,
+        // et c'est deja bien assez d'exposition comme ca.
+        var result = unattend
+            ? await _runner.RunWithCredentialAsync("New-NovaVm.ps1", unattendUsername!, unattendPassword ?? "", parameters)
+            : await RunAsyncCore("New-NovaVm.ps1", $"Creation de la VM '{name}'", silent: false, onProgress, parameters);
+
+        if (unattend)
+        {
+            _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "New-NovaVm.ps1",
+                $"Creation de la VM '{name}' avec installation automatique : " + (result.Success ? "succes" : "echec"),
+                result.Success ? null : (result.Error ?? result.RawError));
+        }
 
         if (!result.Success) return (null, result.Error ?? result.RawError);
 

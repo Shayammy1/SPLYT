@@ -24,6 +24,8 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
     private int _gpuVramMb = 4096;
     private string? _isoPath;
     private bool _dynamicMemoryEnabled;
+    private bool _unattendInstall = true;
+    private string _unattendUsername = "";
     private string? _currentStep;
     private double _progressPercent;
     private bool _isDownloadingIso;
@@ -77,7 +79,12 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
             _isoPath = NovaVmService.DefaultWindowsIsoPath;
         }
 
-        CreateCommand = new AsyncRelayCommand(CreateAsync, () => !string.IsNullOrWhiteSpace(Name));
+        // L'installation automatique exige un nom de compte Windows : sans lui, le
+        // fichier de reponses ne pourrait pas creer de session et l'installation
+        // s'arreterait en plein milieu, ce qui serait pire que de ne rien tenter.
+        CreateCommand = new AsyncRelayCommand(CreateAsync,
+            () => !string.IsNullOrWhiteSpace(Name)
+                  && (!UnattendInstall || !string.IsNullOrWhiteSpace(UnattendUsername)));
         CancelCommand = new RelayCommand(() => Cancelled?.Invoke(this, EventArgs.Empty));
         BrowseIsoCommand = new RelayCommand(BrowseIso);
         DownloadWindowsIsoCommand = new AsyncRelayCommand(DownloadWindowsIsoAsync, () => !IsDownloadingIso);
@@ -194,6 +201,35 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
     /// automatiquement ou choisie via "Parcourir") est prete a etre utilisee.</summary>
     public bool HasIso => !string.IsNullOrWhiteSpace(IsoPath);
 
+    // --- Installation de Windows sans intervention --------------------------
+    //
+    // SPLYT depose un fichier de reponses sur un second lecteur DVD : le
+    // programme d'installation y trouve tout ce qu'il aurait demande, y compris
+    // les choix de personnalisation, tous mis a NON. Le compte Windows cree ici
+    // est celui que SPLYT reutilisera ensuite pour installer VDD et Sunshine.
+
+    public bool UnattendInstall
+    {
+        get => _unattendInstall;
+        set
+        {
+            if (SetProperty(ref _unattendInstall, value)) CreateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public string UnattendUsername
+    {
+        get => _unattendUsername;
+        set
+        {
+            if (SetProperty(ref _unattendUsername, value)) CreateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>Cablee par la vue : WPF n'expose jamais PasswordBox.Password comme
+    /// DependencyProperty, il n'y a donc pas de liaison possible.</summary>
+    public Func<string>? GetUnattendPassword { get; set; }
+
     /// <summary>Inverse de HasIso : evite de devoir gerer un ConverterParameter="Invert"
     /// sur BoolToVisibilityConverter (le BooleanToVisibilityConverter standard WPF ne le
     /// supporte pas, contrairement a NullToVisibilityConverter).</summary>
@@ -297,10 +333,14 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
             else if (SelectedGpu == NoGpuOption) gpuName = null;
             else gpuName = SelectedGpu;
 
+            var unattendPassword = UnattendInstall ? (GetUnattendPassword?.Invoke() ?? "") : null;
+
             var (vm, error) = await _vmService.CreateVmAsync(
                 Name, Cpu, (long)(MemoryGb * 1024), DiskSizeGb,
                 gpuName, gpuName is null ? 0 : GpuVramMb, IsoPath,
-                dynamicMemoryEnabled: DynamicMemoryEnabled, onProgress: OnCreationProgress);
+                dynamicMemoryEnabled: DynamicMemoryEnabled, onProgress: OnCreationProgress,
+                unattendUsername: UnattendInstall ? UnattendUsername : null,
+                unattendPassword: unattendPassword);
 
             if (vm is null)
             {

@@ -74,6 +74,35 @@
                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"
                                   ToolTip="{markup:Tr Vm_DynamicMemory_Tooltip}" />
 
+                        <!-- Installation de Windows sans intervention. Le compte cree
+                             ici est celui que SPLYT reutilisera pour installer VDD et
+                             Sunshine : c'est pour ca qu'on le demande maintenant. -->
+                        <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox Content="{markup:Tr CreateVm_Unattend}" IsChecked="{Binding UnattendInstall}"
+                                          Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="{markup:Tr CreateVm_Unattend_Note}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" />
+
+                                <StackPanel Margin="0,12,0,0"
+                                            Visibility="{Binding UnattendInstall, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBlock Text="{markup:Tr CreateVm_Unattend_Username}" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBox Text="{Binding UnattendUsername, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,12" />
+
+                                    <TextBlock Text="{markup:Tr CreateVm_Unattend_Password}" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <PasswordBox x:Name="UnattendPasswordInput" Margin="0,6,0,10" Padding="10,8"
+                                                 Background="{StaticResource SurfaceElevatedBrush}"
+                                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                                 BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1" />
+
+                                    <TextBlock Text="{markup:Tr CreateVm_Unattend_PasswordNote}" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextMutedBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="{markup:Tr CreateVm_Disk}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
                         <Grid Margin="0,6,0,16">
                             <Grid.ColumnDefinitions>

@@ -15,6 +15,7 @@ param(
 )
 
 Import-Module (Join-Path $PSScriptRoot "NovaVm.Common.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "NovaVm.Unattend.psm1") -Force
 
 $deadline = (Get-Date).AddHours(3)
 
@@ -36,6 +37,11 @@ while ((Get-Date) -lt $deadline) {
         if ($hardDrive) {
             try { Set-VMFirmware -VMName $Name -FirstBootDevice $hardDrive -ErrorAction Stop } catch { }
         }
+
+        # L'ISO du fichier de reponses a fait son office : elle porte le mot de
+        # passe du compte Windows, sans autre protection qu'un encodage
+        # reversible, et n'a plus aucune raison de rester montee ni sur le disque.
+        try { Remove-NovaUnattendIso -VmName $Name } catch { }
 
         # Memorise que Windows est installe : c'est ce qui declenche cote GUI la
         # proposition de configuration en un clic (bouton "SPLYT") et rend ce

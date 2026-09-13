@@ -25,6 +25,7 @@ public partial class CreateVmDialog : UserControl
         if (e.NewValue is CreateVmDialogViewModel viewModel)
         {
             viewModel.BrowseForIsoFile = BrowseForIsoFile;
+            viewModel.GetUnattendPassword = () => UnattendPasswordInput.Password;
         }
     }
 
