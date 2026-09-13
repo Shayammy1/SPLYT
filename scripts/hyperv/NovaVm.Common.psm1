@@ -340,7 +340,12 @@ function Save-NovaVmPreferences {
         [string]$OsInstalled = "",
         # Version du pilote graphique de l'hote au moment ou il a ete copie dans la
         # VM : sert a detecter la derive apres une mise a jour du pilote hote.
-        [string]$GpuDriverVersion = ""
+        [string]$GpuDriverVersion = "",
+        # Identifiants de PORT USB des peripheriques dedies a cette VM ("3-3"),
+        # separes par des virgules. Chaine vide = plus aucun. Sert au lancement du
+        # mode jeu : sans cette liste, SPLYT ne saurait pas quels peripheriques la
+        # VM est censee recuperer, et lancerait le flux sans les attendre.
+        [string]$UsbBusIds = ""
     )
     $mutex = New-Object System.Threading.Mutex($false, "Global\NovaVM_PreferencesStore")
     try {
@@ -369,6 +374,7 @@ function Save-NovaVmPreferences {
         $resolutionValue = if ($PSBoundParameters.ContainsKey('Resolution')) { $Resolution } elseif ($existing) { $existing.resolution } else { "1920x1080" }
         $hzValue         = if ($PSBoundParameters.ContainsKey('Hz'))         { $Hz }         elseif ($existing) { $existing.hz }         else { 60 }
         $gpuDriverVersionValue = if ($PSBoundParameters.ContainsKey('GpuDriverVersion')) { $GpuDriverVersion } elseif ($existing) { $existing.gpuDriverVersion } else { $null }
+        $usbBusIdsValue = if ($PSBoundParameters.ContainsKey('UsbBusIds')) { $UsbBusIds } elseif ($existing) { $existing.usbBusIds } else { "" }
 
         $osInstalledValue = if ($OsInstalled -ne "") {
             ($OsInstalled -eq "true")
@@ -386,6 +392,7 @@ function Save-NovaVmPreferences {
             hz          = $hzValue
             osInstalled = $osInstalledValue
             gpuDriverVersion = $gpuDriverVersionValue
+            usbBusIds   = $usbBusIdsValue
         }
 
         $updated = New-Object System.Collections.ArrayList

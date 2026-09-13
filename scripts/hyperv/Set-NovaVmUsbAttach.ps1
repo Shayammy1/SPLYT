@@ -93,6 +93,23 @@ Invoke-NovaAction {
 
         if (-not $outcome.ok) { throw $outcome.error }
 
+        # On note quels peripheriques appartiennent a cette VM. Sans cette liste,
+        # le lancement du mode jeu n'a aucun moyen de savoir qu'il doit les
+        # attendre : il partait des que Sunshine repondait, parfois avant que
+        # l'invite ait recupere sa souris - et les deux souris se retrouvaient
+        # alors a piloter le meme curseur.
+        $prefs = Get-NovaVmPreferences -Name $Name
+        $connus = @()
+        if ($prefs -and $prefs.usbBusIds) {
+            $connus = @($prefs.usbBusIds -split ',' | Where-Object { $_ })
+        }
+        $connus = if ($wantAttached) {
+            @($connus + $BusId | Select-Object -Unique)
+        } else {
+            @($connus | Where-Object { $_ -ne $BusId })
+        }
+        Save-NovaVmPreferences -Name $Name -UsbBusIds ($connus -join ',')
+
         $message = if ($wantAttached) {
             "Peripherique confie a la VM. Il a disparu de l'hote et y reviendra si vous le rendez."
         } else {

@@ -291,6 +291,54 @@ Invoke-NovaAction {
         Start-Sleep -Seconds $reste
     }
 
+    # Les peripheriques dedies a cette VM doivent l'avoir REJOINTE avant qu'on
+    # affiche quoi que ce soit. Quand la VM est eteinte, l'hote les recupere ; a
+    # son demarrage, une tache dans l'invite les reprend. Lancer le flux sans
+    # attendre cette reprise laisse les deux souris sur l'hote, donc a piloter le
+    # meme curseur - exactement le symptome "impossible de les separer".
+    $attendus = @()
+    if ($prefs -and $prefs.usbBusIds) {
+        $attendus = @($prefs.usbBusIds -split ',' | Where-Object { $_ })
+    }
+    $usbMessage = ""
+    if ($attendus.Count -gt 0) {
+        $usbipdPath = Get-NovaUsbipdPath
+        if ($usbipdPath) {
+            Write-NovaProgress "Attente des peripheriques dedies a la VM"
+            $manquants = $attendus
+            $limiteUsb = (Get-Date).AddSeconds(60)
+            while ((Get-Date) -lt $limiteUsb -and $manquants.Count -gt 0) {
+                try {
+                    $etat = (& $usbipdPath state 2>&1 | Out-String) | ConvertFrom-Json
+                    $rattaches = @($etat.Devices | Where-Object { "$($_.ClientIPAddress)" -eq $vmIp } | ForEach-Object { "$($_.BusId)" })
+                    $manquants = @($attendus | Where-Object { $rattaches -notcontains $_ })
+                } catch {
+                    # Etat illisible : on reessaiera au tour suivant.
+                }
+                if ($manquants.Count -gt 0) { Start-Sleep -Seconds 2 }
+            }
+            if ($manquants.Count -gt 0) {
+                $usbMessage = " Attention : la VM n'a pas repris " + ($manquants -join ', ') +
+                              " ; ces peripheriques pilotent encore l'hote."
+            }
+        }
+    } else {
+        # Liste inconnue : on apprend de ce qu'on observe. Les peripheriques
+        # confies a une VM avant l'existence de cette memoire, ou attribues a la
+        # main, seraient sinon ignores pour toujours - et le lancement suivant
+        # repartirait sans les attendre.
+        $usbipdPath = Get-NovaUsbipdPath
+        if ($usbipdPath) {
+            try {
+                $etat = (& $usbipdPath state 2>&1 | Out-String) | ConvertFrom-Json
+                $vus = @($etat.Devices | Where-Object { "$($_.ClientIPAddress)" -eq $vmIp } | ForEach-Object { "$($_.BusId)" })
+                if ($vus.Count -gt 0) { Save-NovaVmPreferences -Name $Name -UsbBusIds ($vus -join ',') }
+            } catch {
+                # Sans etat lisible, il n'y a rien a apprendre ce coup-ci.
+            }
+        }
+    }
+
     Write-NovaProgress "Ouverture de Moonlight"
     $arguments = @(
         "stream", $vmIp, $AppName,
@@ -442,7 +490,7 @@ Invoke-NovaAction {
         bitrateKbps = $BitrateKbps
         appName     = $AppName
         monitor     = $MonitorDeviceName
-        message     = "Moonlight lance sur $vmIp en $Resolution a $Fps Hz, debit $([int]($BitrateKbps / 1000)) Mbit/s, 4:4:4 active.$monitorMessage$focusMessage"
+        message     = "Moonlight lance sur $vmIp en $Resolution a $Fps Hz, debit $([int]($BitrateKbps / 1000)) Mbit/s, 4:4:4 active.$monitorMessage$focusMessage$usbMessage"
     }
     Write-NovaResult -Success $true -DataJson ([pscustomobject]$result | ConvertTo-Json -Compress)
 }
