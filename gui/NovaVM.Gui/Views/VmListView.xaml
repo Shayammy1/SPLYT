@@ -736,7 +736,8 @@
                                 </StackPanel>
                             </TabItem.Header>
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="0,16,16,16" MaxWidth="640" HorizontalAlignment="Left">
+                            <StackPanel x:Name="UsbTabContent" Margin="0,16,16,16" MaxWidth="640" HorizontalAlignment="Left"
+                                        IsVisibleChanged="OnUsbTabVisibilityChanged">
 
                                 <TextBlock Text="{markup:Tr VmList_Usb_Intro}" TextWrapping="Wrap" FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,14" />
@@ -753,6 +754,9 @@
                                     </StackPanel>
                                 </Border>
 
+                                <TextBlock Text="{markup:Tr VmList_Usb_LedHint}" TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12" />
+
                                 <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
                                     <Button Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,8"
                                             Content="{markup:Tr VmList_Usb_Refresh}"
@@ -765,11 +769,30 @@
                                             <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,10">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
 
-                                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                    <!-- Temoin d'identification : s'allume quand ce
+                                                         peripherique est manipule. -->
+                                                    <Ellipse Grid.Column="0" Width="10" Height="10" Margin="0,0,12,0"
+                                                             VerticalAlignment="Center"
+                                                             Fill="{StaticResource BorderBrush2}">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Setter Property="Opacity" Value="0.45" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                        <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+                                                                        <Setter Property="Opacity" Value="1" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+
+                                                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
                                                         <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
                                                                    FontWeight="SemiBold" FontSize="13"
                                                                    Foreground="{StaticResource TextPrimaryBrush}" />
@@ -780,7 +803,7 @@
                                                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" />
                                                     </StackPanel>
 
-                                                    <Button Grid.Column="1" VerticalAlignment="Center"
+                                                    <Button Grid.Column="2" VerticalAlignment="Center"
                                                             Content="{Binding ActionLabel}"
                                                             Style="{StaticResource GhostButtonStyle}"
                                                             Command="{Binding DataContext.ToggleUsbDeviceCommand,

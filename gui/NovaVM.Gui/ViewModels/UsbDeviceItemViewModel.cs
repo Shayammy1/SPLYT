@@ -20,6 +20,7 @@ public sealed class UsbDeviceItemViewModel : ObservableObject
     private bool _attached;
     private string? _clientIp;
     private bool _isSelected;
+    private bool _isActive;
 
     public UsbDeviceItemViewModel(UsbDeviceDto dto)
     {
@@ -84,6 +85,15 @@ public sealed class UsbDeviceItemViewModel : ObservableObject
     /// a la VM a la fin de la configuration. Inutilise dans l'onglet Peripheriques,
     /// ou l'action se fait ligne par ligne.</summary>
     public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
+
+    /// <summary>Le temoin d'identification : vrai pendant un court instant apres que
+    /// ce peripherique a servi. Bouger la souris ou appuyer sur une touche allume
+    /// sa ligne, seul moyen de la reconnaitre quand Windows les nomme toutes
+    /// pareil. Voir UsbActivityTracker.</summary>
+    public bool IsActive { get => _isActive; set => SetProperty(ref _isActive, value); }
+
+    /// <summary>Date du dernier evenement, lue par le temporisateur qui eteint.</summary>
+    public DateTime LastActivityUtc { get; set; }
 
     /// <summary>Ce que fait le bouton de la ligne : donner a la VM, ou rendre.</summary>
     public string ActionLabel => Attached

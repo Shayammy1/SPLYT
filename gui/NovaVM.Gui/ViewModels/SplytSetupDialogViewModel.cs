@@ -43,6 +43,7 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
         _hostGpus = hostGpus;
         Vm = vm;
 
+        UsbActivity = new Services.UsbActivityTracker(() => UsbDevices);
         RunCommand = new AsyncRelayCommand(RunAsync, () => !string.IsNullOrWhiteSpace(Username) && !IsFinished);
         CloseCommand = new RelayCommand(() => Closed?.Invoke(this, EventArgs.Empty));
 
@@ -114,6 +115,11 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     // USB et non le peripherique.
 
     public System.Collections.ObjectModel.ObservableCollection<UsbDeviceItemViewModel> UsbDevices { get; } = new();
+
+    /// <summary>Allume la ligne du peripherique manipule : sans ca, cocher la bonne
+    /// case parmi six "Peripherique d'entree USB" identiques tient du hasard.
+    /// Demarre et arrete par la vue, avec la fenetre.</summary>
+    public Services.UsbActivityTracker UsbActivity { get; }
 
     /// <summary>Faux au tout premier passage sur une machine neuve : le serveur
     /// USB/IP n'est pas encore la, donc rien a lister. Cette configuration va

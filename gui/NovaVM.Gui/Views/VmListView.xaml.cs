@@ -35,6 +35,17 @@ public partial class VmListView : UserControl
         }
     }
 
+    /// <summary>Les temoins d'identification n'ecoutent les entrees que pendant que
+    /// l'onglet Peripheriques est a l'ecran. Ailleurs dans l'application, cette
+    /// ecoute n'aurait rien a eclairer.</summary>
+    private void OnUsbTabVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (DataContext is not VmListViewModel viewModel) return;
+
+        if (e.NewValue is true) viewModel.UsbActivity.Start();
+        else viewModel.UsbActivity.Stop();
+    }
+
     private string? BrowseForNvidiaDriverFile()
     {
         var dialog = new OpenFileDialog

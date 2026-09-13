@@ -86,11 +86,29 @@
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,0,8"
                                                   Foreground="{StaticResource TextSecondaryBrush}">
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="12"
-                                                           Foreground="{StaticResource TextPrimaryBrush}" />
-                                                <TextBlock Text="{Binding IdentityText}" FontSize="10.5" FontFamily="Consolas"
-                                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <!-- Temoin d'identification : bouger la souris ou
+                                                     appuyer sur une touche allume sa ligne. -->
+                                                <Ellipse Width="9" Height="9" Margin="0,0,9,0" VerticalAlignment="Center"
+                                                         Fill="{StaticResource BorderBrush2}">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Opacity" Value="0.45" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                    <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+                                                                    <Setter Property="Opacity" Value="1" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="12"
+                                                               Foreground="{StaticResource TextPrimaryBrush}" />
+                                                    <TextBlock Text="{Binding IdentityText}" FontSize="10.5" FontFamily="Consolas"
+                                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0" />
+                                                </StackPanel>
                                             </StackPanel>
                                         </CheckBox>
                                     </DataTemplate>

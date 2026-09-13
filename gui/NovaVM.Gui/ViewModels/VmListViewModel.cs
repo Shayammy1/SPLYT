@@ -72,6 +72,7 @@ public sealed class VmListViewModel : ViewModelBase
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         VddInstallCommand = new AsyncRelayCommand(VddInstallAsync,
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
+        UsbActivity = new Services.UsbActivityTracker(() => UsbDevices);
         RefreshUsbDevicesCommand = new AsyncRelayCommand(RefreshUsbDevicesAsync);
         InstallUsbRedirectionCommand = new AsyncRelayCommand(InstallUsbRedirectionAsync);
         // Confier un peripherique exige une VM demarree : le rattachement se fait
@@ -506,6 +507,12 @@ public sealed class VmListViewModel : ViewModelBase
     public bool HasNoUsbDevices => !UsbServerMissing && UsbDevices.Count == 0;
 
     public string? UsbStatusText { get => _usbStatusText; private set => SetProperty(ref _usbStatusText, value); }
+
+    /// <summary>Allume la ligne du peripherique manipule, pour l'identifier. Demarre
+    /// et arrete par la vue quand l'onglet Peripheriques devient visible ou non :
+    /// ecouter les entrees en permanence, en arriere-plan, n'aurait aucune raison
+    /// d'etre.</summary>
+    public Services.UsbActivityTracker UsbActivity { get; }
 
     public AsyncRelayCommand RefreshUsbDevicesCommand { get; }
     public AsyncRelayCommand InstallUsbRedirectionCommand { get; }
