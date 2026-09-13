@@ -165,6 +165,17 @@ public class NovaMoonlightWindow {
 
     public static IntPtr Foreground() { return GetForegroundWindow(); }
 
+    /// <summary>Vrai si la fenetre au premier plan appartient a ce processus. Sert
+    /// a savoir si Moonlight vient de reprendre le focus - et donc la souris de
+    /// l'hote - apres qu'on le lui a retire.</summary>
+    public static bool ForegroundBelongsTo(int processId) {
+        IntPtr front = GetForegroundWindow();
+        if (front == IntPtr.Zero) return false;
+        uint owner;
+        GetWindowThreadProcessId(front, out owner);
+        return owner == (uint)processId;
+    }
+
     /// <summary>Redonne le premier plan a une fenetre de l'hote.
     ///
     /// Windows refuse SetForegroundWindow a un processus qui n'est pas deja
@@ -285,16 +296,24 @@ Invoke-NovaAction {
     # focus ; sans peripherique dedie, au contraire, le focus est le SEUL moyen de
     # se servir de la VM, et on le laisse donc a Moonlight.
     [NovaMoonlightWindow]::MakeDpiAware()
-    $vmOwnsInput = $false
-    $usbipdPath = Get-NovaUsbipdPath
-    if ($usbipdPath) {
+
+    # Question posee DEUX fois, et non une. Apres un demarrage a froid, la tache
+    # qui rebranche les peripheriques dans l'invite peut n'avoir pas encore fini
+    # quand on arrive ici ; la reponse d'alors serait "non" a tort, et le focus
+    # resterait a Moonlight pour toute la session.
+    $testVmOwnsInput = {
+        $usbipdPath = Get-NovaUsbipdPath
+        if (-not $usbipdPath) { return $false }
         try {
             $usbState = (& $usbipdPath state 2>&1 | Out-String) | ConvertFrom-Json
-            $vmOwnsInput = @($usbState.Devices | Where-Object { "$($_.ClientIPAddress)" -eq $vmIp }).Count -gt 0
+            return @($usbState.Devices | Where-Object { "$($_.ClientIPAddress)" -eq $vmIp }).Count -gt 0
         } catch {
             # Etat illisible : on se comporte comme sans peripherique dedie.
+            return $false
         }
     }
+
+    $vmOwnsInput = & $testVmOwnsInput
     $previousForeground = [NovaMoonlightWindow]::Foreground()
 
     $moonlight = Start-Process -FilePath $moonlightPath -ArgumentList $arguments -PassThru
@@ -306,7 +325,11 @@ Invoke-NovaAction {
     $focusMessage = ""
     $wantsPlacement = -not [string]::IsNullOrWhiteSpace($MonitorDeviceName)
 
-    if ($wantsPlacement -or $vmOwnsInput) {
+    # La redirection USB installee suffit a justifier l'attente de la fenetre :
+    # c'est seulement une fois celle-ci apparue qu'on saura si la VM a recupere
+    # ses peripheriques. Attendre pour rien coute peu - l'attente s'arrete des que
+    # la fenetre existe, soit quelques secondes.
+    if ($wantsPlacement -or $vmOwnsInput -or (Get-NovaUsbipdPath)) {
         # La fenetre de flux n'existe qu'une fois la connexion etablie, ce qui
         # prend plusieurs secondes : on la guette au lieu de la chercher une seule
         # fois. Cette attente sert aux deux traitements qui suivent.
@@ -342,14 +365,46 @@ Invoke-NovaAction {
         }
 
         # --- Restitution du premier plan a l'hote ---------------------------
+        # Seconde interrogation, maintenant que la VM a fini de demarrer et que sa
+        # tache de rebranchement a eu le temps de s'executer.
+        if (-not $vmOwnsInput) { $vmOwnsInput = & $testVmOwnsInput }
+
         if ($vmOwnsInput -and $window -ne [IntPtr]::Zero) {
             Write-NovaProgress "Restitution du clavier et de la souris a l'hote"
-            # Un instant de repit : Moonlight se met au premier plan de lui-meme
-            # peu apres l'ouverture de sa fenetre. Reprendre le focus trop tot le
-            # lui rendrait aussitot.
-            Start-Sleep -Seconds 2
-            if ([NovaMoonlightWindow]::RestoreForeground($previousForeground)) {
+
+            # Insister, et ne pas se contenter d'une tentative unique. Moonlight ne
+            # prend pas le premier plan une fois pour toutes : il le reprend quand
+            # sa fenetre de flux apparait, puis encore lorsqu'elle passe en plein
+            # ecran. Une seule restitution, placee au mauvais moment, se faisait
+            # donc annuler - d'ou des lancements ou les deux souris restaient liees
+            # et ou il fallait un Ctrl+Alt+Suppr pour s'en sortir.
+            #
+            # On surveille douze secondes au plus, et on ne s'arrete avant que si le
+            # premier plan est reste hors de Moonlight QUATRE SECONDES d'affilee.
+            # Un arret apres quelques centaines de millisecondes de calme laissait
+            # passer la seconde prise de focus, celle du passage en plein ecran :
+            # mesure faite, la reprise arrive environ trois secondes apres la
+            # premiere. Passe ce delai, cliquer dans la fenetre redonne la main a
+            # Moonlight, comme il se doit.
+            $rendu = $false
+            $calmeDepuis = $null
+            $limite = (Get-Date).AddSeconds(12)
+            while ((Get-Date) -lt $limite) {
+                Start-Sleep -Milliseconds 300
+                if ([NovaMoonlightWindow]::ForegroundBelongsTo($moonlight.Id)) {
+                    if ([NovaMoonlightWindow]::RestoreForeground($previousForeground)) { $rendu = $true }
+                    $calmeDepuis = $null
+                } else {
+                    $rendu = $true
+                    if (-not $calmeDepuis) { $calmeDepuis = Get-Date }
+                    elseif (((Get-Date) - $calmeDepuis).TotalSeconds -ge 4) { break }
+                }
+            }
+
+            if ($rendu) {
                 $focusMessage = " La souris et le clavier de l'hote lui restent acquis : la VM a les siens."
+            } else {
+                $focusMessage = " Attention : Moonlight a garde le clavier et la souris de l'hote. Cliquez hors de sa fenetre pour les recuperer."
             }
         }
     }
