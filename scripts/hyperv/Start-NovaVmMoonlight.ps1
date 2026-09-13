@@ -34,6 +34,13 @@ param(
 
 Import-Module (Join-Path $PSScriptRoot "NovaVm.Common.psm1") -Force
 
+# Age minimal de la VM avant d'y brancher le flux. Voir l'attente correspondante
+# plus bas : en dessous, l'affichage de l'invite n'a pas fini de se mettre en
+# place et la capture de Sunshine echoue. Soixante secondes couvrent largement
+# l'ouverture de session automatique et l'activation de l'ecran virtuel, et ne
+# coutent rien sur une VM qui tournait deja.
+$minimumUptimeSeconds = 60
+
 # Deplacement de la fenetre de flux vers l'ecran demande.
 #
 # Moonlight 6.1 n'a AUCUNE option de ligne de commande pour choisir l'ecran, et la
@@ -263,6 +270,25 @@ Invoke-NovaAction {
     }
     if (-not $sunshineReady) {
         throw "Sunshine ne repond pas dans la VM ($vmIp). Verifiez qu'il y est bien installe et demarre."
+    }
+
+    # Le port de Sunshine s'ouvre des le lancement de son service, donc tres tot
+    # dans le demarrage de Windows - bien avant que la session soit ouverte et que
+    # l'affichage se soit stabilise. Se connecter a cet instant fait echouer la
+    # capture : Sunshine bascule l'ecran virtuel en cours de route, perd l'acces a
+    # la duplication (DXGI_ERROR_ACCESS_LOST) et coupe la session au bout de
+    # quelques secondes. Vu en vrai : VM demarree a 21:32:10, Sunshine pret a
+    # 21:32:13, connexion a 21:32:16, session perdue a 21:32:36.
+    #
+    # On laisse donc la VM prendre un peu d'age avant de s'y connecter. Le temps
+    # deja passe a l'attendre compte : sur une VM qui tournait deja, cette attente
+    # est nulle.
+    $vm = Get-VM -Name $Name -ErrorAction SilentlyContinue
+    $uptime = if ($vm -and $vm.Uptime) { $vm.Uptime.TotalSeconds } else { $minimumUptimeSeconds }
+    if ($uptime -lt $minimumUptimeSeconds) {
+        $reste = [int]($minimumUptimeSeconds - $uptime)
+        Write-NovaProgress "Stabilisation de l'affichage dans la VM ($reste s)"
+        Start-Sleep -Seconds $reste
     }
 
     Write-NovaProgress "Ouverture de Moonlight"
