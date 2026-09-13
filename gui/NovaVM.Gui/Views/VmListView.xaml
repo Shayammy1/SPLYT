@@ -716,6 +716,19 @@
                                                     Command="{Binding AutoLogonDisableCommand}" Margin="0,0,8,8" />
                                         </WrapPanel>
 
+                                        <!-- Bureau securise : les demandes d'elevation de la VM
+                                             figent le flux tant qu'elles sont affichees, parce que
+                                             ce bureau-la n'est capturable par rien. -->
+                                        <TextBlock Text="{markup:Tr VmList_SecureDesktop_Note}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8" />
+                                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,18">
+                                            <Button Content="{markup:Tr VmList_SecureDesktop_Show}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding SecureDesktopShowCommand}" Margin="0,0,8,8"
+                                                    ToolTip="{markup:Tr VmList_SecureDesktop_Show_Tooltip}" />
+                                            <Button Content="{markup:Tr VmList_SecureDesktop_Restore}" Style="{StaticResource GhostButtonStyle}"
+                                                    Command="{Binding SecureDesktopRestoreCommand}" Margin="0,0,8,8" />
+                                        </WrapPanel>
+
                                         <TextBlock Text="{Binding VddResultText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
                                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,0"
                                                    Visibility="{Binding VddResultText, Converter={StaticResource NullToVisibilityConverter}}" />

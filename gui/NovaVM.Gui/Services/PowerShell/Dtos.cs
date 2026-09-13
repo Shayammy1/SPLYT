@@ -352,3 +352,13 @@ public sealed class UsbAttachResultDto
     public string? HostIp { get; set; }
     public string? Message { get; set; }
 }
+
+public sealed class SecureDesktopResultDto
+{
+    /// <summary>Etat apres l'operation : vrai = bureau securise actif, donc flux
+    /// fige pendant les demandes d'elevation.</summary>
+    public bool SecureDesktop { get; set; }
+
+    public int PreviousValue { get; set; }
+    public string? Message { get; set; }
+}

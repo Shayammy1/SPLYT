@@ -489,6 +489,26 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    /// <summary>Fait apparaitre les demandes d'elevation de la VM sur son bureau
+    /// ordinaire, pour qu'elles traversent le flux de jeu au lieu de le figer.
+    /// Abaisse une protection A L'INTERIEUR de la VM : c'est un choix explicite de
+    /// l'utilisateur, jamais applique d'office - voir Set-NovaVmSecureDesktop.ps1.</summary>
+    public async Task<(SecureDesktopResultDto? Result, string? Error)> SetSecureDesktopAsync(
+        string name, string username, string password, bool secureDesktop)
+    {
+        var result = await _runner.RunWithCredentialAsync(
+            "Set-NovaVmSecureDesktop.ps1", username, password,
+            ("Name", name), ("SecureDesktop", secureDesktop ? "true" : "false"));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Set-NovaVmSecureDesktop.ps1",
+            $"Bureau securise de '{name}' ({(secureDesktop ? "retabli" : "desactive")}) : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<SecureDesktopResultDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     // --- Peripheriques USB confies a une VM ---------------------------------
     //
     // Le travail est coupe en deux parce que les deux moities ne peuvent pas

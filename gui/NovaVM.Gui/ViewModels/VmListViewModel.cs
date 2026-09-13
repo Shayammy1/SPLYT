@@ -83,6 +83,10 @@ public sealed class VmListViewModel : ViewModelBase
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         AutoLogonDisableCommand = new AsyncRelayCommand(() => AutoLogonRunAsync(disable: true),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
+        SecureDesktopShowCommand = new AsyncRelayCommand(() => SecureDesktopRunAsync(secureDesktop: false),
+            () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
+        SecureDesktopRestoreCommand = new AsyncRelayCommand(() => SecureDesktopRunAsync(secureDesktop: true),
+            () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         GamingOptimizePerformanceCommand = new AsyncRelayCommand(() => GamingOptimizeAsync(performance: true, privacy: false),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(GamingUsername));
         GamingOptimizePrivacyCommand = new AsyncRelayCommand(() => GamingOptimizeAsync(performance: false, privacy: true),
@@ -522,6 +526,12 @@ public sealed class VmListViewModel : ViewModelBase
     /// l'ecran noir du streaming, sans repasser par la configuration complete.</summary>
     public AsyncRelayCommand AutoLogonEnableCommand { get; }
     public AsyncRelayCommand AutoLogonDisableCommand { get; }
+
+    /// <summary>Fait apparaitre les demandes d'elevation de la VM dans le flux au
+    /// lieu de le figer. Abaisse une protection a l'interieur de la VM : deux
+    /// boutons distincts et explicites, jamais un reglage applique d'office.</summary>
+    public AsyncRelayCommand SecureDesktopShowCommand { get; }
+    public AsyncRelayCommand SecureDesktopRestoreCommand { get; }
     public AsyncRelayCommand GamingOptimizePerformanceCommand { get; }
     public AsyncRelayCommand GamingOptimizePrivacyCommand { get; }
     /// <summary>Demarre la VM si besoin puis ouvre Moonlight deja connecte : le
@@ -1137,6 +1147,26 @@ public sealed class VmListViewModel : ViewModelBase
 
         UsbStatusText = attach.Message;
         await RefreshUsbDevicesAsync();
+    }
+
+    private async Task SecureDesktopRunAsync(bool secureDesktop)
+    {
+        if (SelectedVm is null) return;
+        var password = VddGetPassword?.Invoke() ?? "";
+        if (string.IsNullOrEmpty(password))
+        {
+            VddResultText = Loc.Get("Common_PasswordRequired");
+            return;
+        }
+
+        var (result, error) = await _vmService.SetSecureDesktopAsync(
+            SelectedVm.Name, ResolveVddUsername(VddUsername), password, secureDesktop);
+
+        VddResultText = result?.Message ?? error ?? Loc.Get("VmList_SecureDesktop_Failed");
+        if (result is not null && VddRememberCredentials)
+        {
+            VmCredentialStore.Save(SelectedVm.Name, VddUsername, password);
+        }
     }
 
     private async Task AutoLogonRunAsync(bool disable)
