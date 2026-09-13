@@ -1,0 +1,59 @@
+<Window x:Class="NovaVM.Gui.Controls.UsageOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:markup="clr-namespace:NovaVM.Gui.Markup"
+        Title="SPLYT" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight" Focusable="False">
+
+    <!-- Fond semi-transparent : la superposition se pose par-dessus un jeu ou un
+         bureau quelconque, elle doit rester lisible sans masquer ce qu'il y a
+         dessous. -->
+    <Border Background="#D91A1D23" CornerRadius="10" Padding="14,11" Margin="10"
+            BorderBrush="#40FFFFFF" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect Color="Black" BlurRadius="16" ShadowDepth="0" Opacity="0.55" />
+        </Border.Effect>
+
+        <StackPanel MinWidth="168">
+            <Grid Margin="0,0,0,8">
+                <TextBlock Text="{markup:Tr Overlay_Title}" FontSize="10.5" FontWeight="SemiBold"
+                           Foreground="#8A93A5" VerticalAlignment="Center" />
+                <TextBlock Text="{markup:Tr Overlay_Close}" FontSize="10.5" Cursor="Hand"
+                           HorizontalAlignment="Right" Foreground="#8A93A5"
+                           MouseLeftButtonDown="OnCloseClicked" />
+            </Grid>
+
+            <Grid Margin="0,0,0,6">
+                <TextBlock Text="CPU" FontSize="12" Foreground="#C7CEDB" />
+                <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="White">
+                    <Run Text="{Binding Stats.CpuUsagePercent, Mode=OneWay}" /><Run Text="%" />
+                </TextBlock>
+            </Grid>
+            <ProgressBar Value="{Binding Stats.CpuUsagePercent, Mode=OneWay}" Maximum="100" Height="4"
+                         Margin="0,0,0,10" Foreground="#2BD9A8" Background="#2A2F3A" BorderThickness="0" />
+
+            <Grid Margin="0,0,0,6">
+                <TextBlock Text="RAM" FontSize="12" Foreground="#C7CEDB" />
+                <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="White">
+                    <Run Text="{Binding Stats.RamUsedGb, Mode=OneWay}" /><Run Text=" / " /><Run
+                        Text="{Binding Stats.RamTotalGb, Mode=OneWay}" /><Run Text="{markup:Tr Common_GbUnit}" />
+                </TextBlock>
+            </Grid>
+            <ProgressBar Value="{Binding Stats.RamUsagePercent, Mode=OneWay}" Maximum="100" Height="4"
+                         Margin="0,0,0,10" Foreground="#8B7BF7" Background="#2A2F3A" BorderThickness="0" />
+
+            <Grid Margin="0,0,0,6">
+                <TextBlock Text="GPU" FontSize="12" Foreground="#C7CEDB" />
+                <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="White">
+                    <Run Text="{Binding Stats.GpuUsagePercent, Mode=OneWay}" /><Run Text="%" />
+                </TextBlock>
+            </Grid>
+            <ProgressBar Value="{Binding Stats.GpuUsagePercent, Mode=OneWay}" Maximum="100" Height="4"
+                         Foreground="#2BD9A8" Background="#2A2F3A" BorderThickness="0" />
+
+            <TextBlock Text="{markup:Tr Overlay_DragHint}" FontSize="9.5" Margin="0,10,0,0"
+                       Foreground="#6B7385" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</Window>

@@ -23,16 +23,26 @@
                     <TextBlock Text="{markup:Tr Dashboard_Subtitle}" FontSize="13"
                                Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" />
                 </StackPanel>
-                <Button Grid.Column="1" Style="{StaticResource GhostButtonStyle}"
-                        Command="{Binding RefreshCommand}" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="14" Margin="0,0,8,0" />
-                        <TextBlock Text="{markup:Tr Common_Refresh}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,0"
+                            Command="{Binding ToggleOverlayCommand}"
+                            ToolTip="{markup:Tr Overlay_Toggle_Tooltip}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="PictureInPicture24" FontSize="14" Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding OverlayButtonLabel}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource GhostButtonStyle}"
+                            Command="{Binding RefreshCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="14" Margin="0,0,8,0" />
+                            <TextBlock Text="{markup:Tr Common_Refresh}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </Grid>
 
-            <UniformGrid Columns="3" Margin="0,0,0,24" Rows="1">
+            <UniformGrid Columns="4" Margin="0,0,0,24" Rows="1">
                 <Border Style="{StaticResource CardStyle}" Margin="0,0,8,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
@@ -44,7 +54,7 @@
                             <TextBlock Text="CPU" FontSize="13" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                         </StackPanel>
-                        <TextBlock FontSize="30" FontWeight="Bold" Margin="0,8,0,10"
+                        <TextBlock FontSize="23" FontWeight="Bold" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"
                                    Foreground="{StaticResource TextPrimaryBrush}">
                             <Run Text="{Binding Stats.CpuUsagePercent, Mode=OneWay}" /><Run Text="%" />
                         </TextBlock>
@@ -64,12 +74,32 @@
                             <TextBlock Text="RAM" FontSize="13" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                         </StackPanel>
-                        <TextBlock FontSize="30" FontWeight="Bold" Margin="0,8,0,10"
+                        <TextBlock FontSize="23" FontWeight="Bold" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"
                                    Foreground="{StaticResource TextPrimaryBrush}">
                             <Run Text="{Binding Stats.RamUsedGb, Mode=OneWay}" /><Run Text=" / " /><Run
                                 Text="{Binding Stats.RamTotalGb, Mode=OneWay}" /><Run Text="{markup:Tr Common_GbUnit}" />
                         </TextBlock>
                         <ProgressBar Value="{Binding Stats.RamUsagePercent, Mode=OneWay}" Maximum="100" Height="6"
+                                     Foreground="{StaticResource SecondaryAccentBrush}" Background="{StaticResource SliderTrackBrush}"
+                                     BorderThickness="0" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardStyle}" Margin="8,0,8,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Border Style="{StaticResource SmallIconBadgeStyle}"
+                                    Background="{StaticResource IconAccentBrush}" Margin="0,0,10,0">
+                                <ui:SymbolIcon Symbol="XboxController24" FontSize="17"
+                                               Foreground="{StaticResource IconAccentForeground}" />
+                            </Border>
+                            <TextBlock Text="GPU" FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                        <TextBlock FontSize="23" FontWeight="Bold" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource TextPrimaryBrush}">
+                            <Run Text="{Binding Stats.GpuUsagePercent, Mode=OneWay}" /><Run Text="%" />
+                        </TextBlock>
+                        <ProgressBar Value="{Binding Stats.GpuUsagePercent, Mode=OneWay}" Maximum="100" Height="6"
                                      Foreground="{StaticResource SecondaryAccentBrush}" Background="{StaticResource SliderTrackBrush}"
                                      BorderThickness="0" />
                     </StackPanel>
@@ -85,7 +115,7 @@
                             <TextBlock Text="{markup:Tr Nav_Storage}" FontSize="13" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                         </StackPanel>
-                        <TextBlock FontSize="30" FontWeight="Bold" Margin="0,8,0,10"
+                        <TextBlock FontSize="23" FontWeight="Bold" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"
                                    Foreground="{StaticResource TextPrimaryBrush}">
                             <Run Text="{Binding Stats.StorageUsedGb, Mode=OneWay}" /><Run Text=" / " /><Run
                                 Text="{Binding Stats.StorageTotalGb, Mode=OneWay}" /><Run Text="{markup:Tr Common_GbUnit}" />

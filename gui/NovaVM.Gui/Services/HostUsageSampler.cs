@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace NovaVM.Gui.Services;
@@ -63,6 +64,79 @@ public sealed class HostUsageSampler
         if (!NativeUsage.GlobalMemoryStatusEx(ref status)) return null;
         return Math.Round(status.AvailablePhysical / 1024.0 / 1024.0 / 1024.0, 1);
     }
+
+    /// <summary>Utilisation GPU de l'hote en pourcentage, ou null si Windows ne
+    /// sait pas la fournir.
+    ///
+    /// Methode du Gestionnaire des taches : le compteur "GPU Engine" expose une
+    /// occupation par MOTEUR (3D, copie, encodage video, decodage...) et par
+    /// processus. Ce que l'on montre comme "le GPU", c'est le moteur le plus
+    /// charge - et non la somme, qui depasserait allegrement 100 % des qu'un jeu
+    /// fait travailler le rendu et l'encodage en meme temps, ce qui est
+    /// precisement le cas d'une VM en streaming.
+    ///
+    /// Le premier appel est lent (Windows construit la liste des instances) et
+    /// peut rendre null : comme pour le CPU, une mesure a besoin de deux points.
+    /// </summary>
+    public double? SampleGpuPercent()
+    {
+        if (_gpuUnavailable) return null;
+
+        try
+        {
+            _gpuCategory ??= new PerformanceCounterCategory("GPU Engine");
+            var best = 0.0d;
+            var seen = false;
+
+            foreach (var instance in _gpuCategory.GetInstanceNames())
+            {
+                // Une instance par couple processus/moteur. On agrege par moteur :
+                // c'est la charge de la PUCE qui interesse, pas celle d'un
+                // programme en particulier.
+                if (!_gpuCounters.TryGetValue(instance, out var counter))
+                {
+                    counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instance, readOnly: true);
+                    _gpuCounters[instance] = counter;
+                    counter.NextValue();   // amorce : la premiere lecture vaut toujours 0
+                    continue;
+                }
+
+                var engine = ExtractEngine(instance);
+                var value = counter.NextValue();
+                _gpuByEngine[engine] = _gpuByEngine.TryGetValue(engine, out var running) ? running + value : value;
+                seen = true;
+            }
+
+            foreach (var total in _gpuByEngine.Values)
+            {
+                if (total > best) best = total;
+            }
+            _gpuByEngine.Clear();
+
+            return seen ? Math.Round(Math.Clamp(best, 0, 100), 0) : null;
+        }
+        catch (Exception)
+        {
+            // Compteurs absents ou corrompus (cas connu apres certaines mises a
+            // jour de pilote) : on cesse d'essayer plutot que de relancer une
+            // exception chaque seconde.
+            _gpuUnavailable = true;
+            return null;
+        }
+    }
+
+    /// <summary>"pid_1234_luid_0x..._phys_0_eng_3_engtype_3D" -> "3D".</summary>
+    private static string ExtractEngine(string instanceName)
+    {
+        const string marker = "engtype_";
+        var index = instanceName.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        return index < 0 ? instanceName : instanceName[(index + marker.Length)..];
+    }
+
+    private PerformanceCounterCategory? _gpuCategory;
+    private readonly Dictionary<string, PerformanceCounter> _gpuCounters = new();
+    private readonly Dictionary<string, float> _gpuByEngine = new();
+    private bool _gpuUnavailable;
 
     private static ulong ToUInt64(NativeUsage.FileTime time) =>
         ((ulong)time.HighDateTime << 32) | time.LowDateTime;

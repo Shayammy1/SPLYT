@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using NovaVM.Gui.Models;
 using NovaVM.Gui.Mvvm;
 using NovaVM.Gui.Services;
+using NovaVM.Gui.Services.Localization;
 
 namespace NovaVM.Gui.ViewModels;
 
@@ -27,6 +28,7 @@ public sealed class DashboardViewModel : ViewModelBase
         _log = log;
         Vms = vms;
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
+        ToggleOverlayCommand = new RelayCommand(ToggleOverlay);
 
         // CPU et RAM rafraichis chaque seconde, mesures dans le processus (voir
         // HostUsageSampler) : assez leger pour cette cadence, contrairement au
@@ -49,7 +51,8 @@ public sealed class DashboardViewModel : ViewModelBase
     {
         var cpuPercent = _usageSampler.SampleCpuPercent();
         var availableRamGb = _usageSampler.SampleAvailableRamGb();
-        if (cpuPercent is null && availableRamGb is null) return;
+        var gpuPercent = _usageSampler.SampleGpuPercent();
+        if (cpuPercent is null && availableRamGb is null && gpuPercent is null) return;
 
         var current = Stats;
         var ramUsedGb = availableRamGb is null || current.RamTotalGb <= 0
@@ -63,6 +66,7 @@ public sealed class DashboardViewModel : ViewModelBase
             RamTotalGb = current.RamTotalGb,
             StorageUsedGb = current.StorageUsedGb,
             StorageTotalGb = current.StorageTotalGb,
+            GpuUsagePercent = gpuPercent ?? current.GpuUsagePercent,
         };
     }
 
@@ -71,6 +75,48 @@ public sealed class DashboardViewModel : ViewModelBase
     public List<LogEntry> Alerts { get => _alerts; private set => SetProperty(ref _alerts, value); }
 
     public AsyncRelayCommand RefreshCommand { get; }
+
+    // --- Superposition CPU/RAM/GPU -----------------------------------------
+    //
+    // La fenetre partage CE view-model : elle affiche donc exactement les
+    // chiffres de la page d'accueil, au meme instant. Deux echantillonnages
+    // separes du meme CPU auraient donne deux valeurs differentes, dont l'une
+    // aurait forcement eu l'air fausse.
+
+    public RelayCommand ToggleOverlayCommand { get; }
+
+    public string OverlayButtonLabel => _overlay is null
+        ? Loc.Get("Overlay_Show")
+        : Loc.Get("Overlay_Hide");
+
+    private Controls.UsageOverlayWindow? _overlay;
+
+    private void ToggleOverlay()
+    {
+        if (_overlay is not null)
+        {
+            _overlay.Close();
+            return;
+        }
+
+        var window = new Controls.UsageOverlayWindow
+        {
+            DataContext = this,
+            Owner = System.Windows.Application.Current?.MainWindow,
+        };
+
+        // Refermee par sa croix ou par la fermeture de SPLYT : dans les deux cas
+        // le bouton doit reprendre son libelle "afficher".
+        window.Closed += (_, _) =>
+        {
+            _overlay = null;
+            OnPropertyChanged(nameof(OverlayButtonLabel));
+        };
+
+        _overlay = window;
+        window.Show();
+        OnPropertyChanged(nameof(OverlayButtonLabel));
+    }
 
     /// <summary>Ne recharge PAS la liste des VMs : elle appartient a VmListViewModel,
     /// qui la tient a jour pour les deux pages (voir le constructeur).</summary>
