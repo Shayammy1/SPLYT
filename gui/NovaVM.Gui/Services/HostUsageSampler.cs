@@ -82,17 +82,45 @@ public sealed class HostUsageSampler
     {
         if (_gpuUnavailable) return null;
 
+        string[] instances;
         try
         {
             _gpuCategory ??= new PerformanceCounterCategory("GPU Engine");
-            var best = 0.0d;
-            var seen = false;
+            instances = _gpuCategory.GetInstanceNames();
+        }
+        catch (Exception)
+        {
+            // La categorie elle-meme est absente (machine sans GPU expose, ou
+            // compteurs de performance abimes) : la, et la seulement, il est
+            // inutile de reessayer chaque seconde.
+            _gpuUnavailable = true;
+            return null;
+        }
 
-            foreach (var instance in _gpuCategory.GetInstanceNames())
+        // Les instances vont et viennent au rythme des processus qui touchent au
+        // GPU - il y en a couramment plusieurs centaines. On oublie celles qui ont
+        // disparu, sinon leurs compteurs s'accumulent et lever une exception a
+        // chaque lecture finirait par couter plus cher que la mesure.
+        if (_gpuCounters.Count > 0)
+        {
+            var live = new HashSet<string>(instances, StringComparer.OrdinalIgnoreCase);
+            foreach (var gone in _gpuCounters.Keys.Where(k => !live.Contains(k)).ToList())
             {
-                // Une instance par couple processus/moteur. On agrege par moteur :
-                // c'est la charge de la PUCE qui interesse, pas celle d'un
-                // programme en particulier.
+                _gpuCounters[gone].Dispose();
+                _gpuCounters.Remove(gone);
+            }
+        }
+
+        var seen = false;
+        foreach (var instance in instances)
+        {
+            // Chaque instance est un couple processus/moteur, et peut s'evaporer
+            // entre l'enumeration et la lecture. Cet echec-la est NORMAL et doit
+            // rester local : l'attraper globalement revenait a eteindre la mesure
+            // pour toute la duree de vie de l'application des la premiere fois -
+            // d'ou un GPU fige a 0 %.
+            try
+            {
                 if (!_gpuCounters.TryGetValue(instance, out var counter))
                 {
                     counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instance, readOnly: true);
@@ -101,36 +129,42 @@ public sealed class HostUsageSampler
                     continue;
                 }
 
+                // Agregation par MOTEUR : c'est la charge de la puce qui interesse,
+                // pas celle d'un programme en particulier.
                 var engine = ExtractEngine(instance);
                 var value = counter.NextValue();
                 _gpuByEngine[engine] = _gpuByEngine.TryGetValue(engine, out var running) ? running + value : value;
                 seen = true;
             }
-
-            foreach (var total in _gpuByEngine.Values)
+            catch (Exception)
             {
-                if (total > best) best = total;
+                _gpuCounters.Remove(instance);
             }
-            _gpuByEngine.Clear();
+        }
 
-            return seen ? Math.Round(Math.Clamp(best, 0, 100), 0) : null;
-        }
-        catch (Exception)
+        var best = 0.0d;
+        foreach (var total in _gpuByEngine.Values)
         {
-            // Compteurs absents ou corrompus (cas connu apres certaines mises a
-            // jour de pilote) : on cesse d'essayer plutot que de relancer une
-            // exception chaque seconde.
-            _gpuUnavailable = true;
-            return null;
+            if (total > best) best = total;
         }
+        _gpuByEngine.Clear();
+
+        return seen ? Math.Round(Math.Clamp(best, 0, 100), 0) : null;
     }
 
-    /// <summary>"pid_1234_luid_0x..._phys_0_eng_3_engtype_3D" -> "3D".</summary>
+    /// <summary>"pid_1234_luid_0x..._phys_0_eng_3_engtype_3D#2" -> "3D".
+    ///
+    /// Le suffixe "#2" est ajoute par Windows pour distinguer deux instances de
+    /// meme nom ; le garder ferait passer "3D" et "3D#2" pour deux moteurs
+    /// differents, et diviserait la charge annoncee entre eux.</summary>
     private static string ExtractEngine(string instanceName)
     {
         const string marker = "engtype_";
         var index = instanceName.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-        return index < 0 ? instanceName : instanceName[(index + marker.Length)..];
+        var engine = index < 0 ? instanceName : instanceName[(index + marker.Length)..];
+
+        var hash = engine.IndexOf('#');
+        return hash < 0 ? engine : engine[..hash];
     }
 
     private PerformanceCounterCategory? _gpuCategory;
