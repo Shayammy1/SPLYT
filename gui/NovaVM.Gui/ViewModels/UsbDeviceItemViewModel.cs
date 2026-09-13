@@ -19,6 +19,7 @@ public sealed class UsbDeviceItemViewModel : ObservableObject
     private bool _shared;
     private bool _attached;
     private string? _clientIp;
+    private bool _isSelected;
 
     public UsbDeviceItemViewModel(UsbDeviceDto dto)
     {
@@ -78,6 +79,11 @@ public sealed class UsbDeviceItemViewModel : ObservableObject
         get => _clientIp;
         set { if (SetProperty(ref _clientIp, value)) NotifyDerived(); }
     }
+
+    /// <summary>Coche dans la fenetre du bouton SPLYT : ce peripherique sera confie
+    /// a la VM a la fin de la configuration. Inutilise dans l'onglet Peripheriques,
+    /// ou l'action se fait ligne par ligne.</summary>
+    public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
 
     /// <summary>Ce que fait le bouton de la ligne : donner a la VM, ou rendre.</summary>
     public string ActionLabel => Attached

@@ -65,6 +65,37 @@
 
                             <TextBlock Text="{markup:Tr VmList_Credentials_StorageNote}" FontSize="11" TextWrapping="Wrap"
                                        Foreground="{StaticResource TextMutedBrush}" />
+
+                            <!-- Peripheriques a dedier a la VM. Seul reglage de cette
+                                 fenetre qui exige quelque chose AVANT de cliquer : le
+                                 materiel doit deja etre branche. -->
+                            <Separator Margin="0,16,0,14" Background="{StaticResource BorderBrush2}" />
+
+                            <TextBlock Text="{markup:Tr Splyt_Usb_Title}" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                            <TextBlock Text="{markup:Tr Splyt_Usb_Note}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10" />
+
+                            <TextBlock Text="{markup:Tr Splyt_Usb_Unavailable}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Visibility="{Binding UsbPickerUnavailable, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                            <ItemsControl ItemsSource="{Binding UsbDevices}"
+                                          Visibility="{Binding UsbPickerAvailable, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,0,8"
+                                                  Foreground="{StaticResource TextSecondaryBrush}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="12"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <TextBlock Text="{Binding IdentityText}" FontSize="10.5" FontFamily="Consolas"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
 
                         <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" FontSize="11.5" LineHeight="18"

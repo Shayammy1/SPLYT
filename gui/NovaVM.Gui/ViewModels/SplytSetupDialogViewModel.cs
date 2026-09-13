@@ -35,6 +35,7 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     private double _progressPercent;
     private string? _resultText;
     private bool _isFinished;
+    private bool _usbPickerAvailable;
 
     public SplytSetupDialogViewModel(NovaVmService vmService, VirtualMachine vm, IReadOnlyList<HostGpu> hostGpus)
     {
@@ -51,6 +52,11 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
             InitialPassword = savedPassword;
             RememberCredentials = true;
         }
+
+        // Liste chargee des l'ouverture : les peripheriques a dedier doivent etre
+        // branches MAINTENANT pour figurer dans le choix, puisque le partage suit
+        // le port USB ou ils se trouvent.
+        _ = LoadUsbDevicesAsync();
     }
 
     public VirtualMachine Vm { get; }
@@ -99,6 +105,45 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
     }
 
     public bool NotFinished => !IsFinished;
+
+    // --- Peripheriques USB a dedier a la VM ---------------------------------
+    //
+    // Presente ici pour que tout se decide en une fois, mais c'est le seul
+    // reglage de cette fenetre qui exige quelque chose de l'utilisateur AVANT de
+    // cliquer : le materiel doit deja etre branche, le partage suivant le port
+    // USB et non le peripherique.
+
+    public System.Collections.ObjectModel.ObservableCollection<UsbDeviceItemViewModel> UsbDevices { get; } = new();
+
+    /// <summary>Faux au tout premier passage sur une machine neuve : le serveur
+    /// USB/IP n'est pas encore la, donc rien a lister. Cette configuration va
+    /// justement l'installer, et la liste sera disponible ensuite.</summary>
+    public bool UsbPickerAvailable
+    {
+        get => _usbPickerAvailable;
+        private set { if (SetProperty(ref _usbPickerAvailable, value)) OnPropertyChanged(nameof(UsbPickerUnavailable)); }
+    }
+
+    public bool UsbPickerUnavailable => !UsbPickerAvailable;
+
+    private async Task LoadUsbDevicesAsync()
+    {
+        var list = await _vmService.GetUsbDevicesAsync();
+        UsbDevices.Clear();
+        UsbPickerAvailable = list?.ServerInstalled == true;
+        if (list?.Devices is null) return;
+
+        foreach (var device in list.Devices.OrderByDescending(d => d.LikelyInput).ThenBy(d => d.BusId))
+        {
+            var item = new UsbDeviceItemViewModel(device)
+            {
+                // Deja dans une VM : coche, pour qu'une reconfiguration ne le
+                // reprenne pas silencieusement a l'invite qui s'en sert.
+                IsSelected = device.Attached,
+            };
+            UsbDevices.Add(item);
+        }
+    }
 
     public AsyncRelayCommand RunCommand { get; }
     public RelayCommand CloseCommand { get; }
@@ -260,9 +305,16 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
             {
                 var (usbGuest, usbGuestError) = await _vmService.InstallUsbGuestAsync(
                     Vm.Name, ResolveUsername(Username), password);
-                report.AppendLine(usbGuest is not null
-                    ? Loc.Get("Splyt_Report_UsbOk")
-                    : Loc.Get("Splyt_Report_UsbGuestFailed", usbGuestError));
+
+                if (usbGuest is null)
+                {
+                    report.AppendLine(Loc.Get("Splyt_Report_UsbGuestFailed", usbGuestError));
+                }
+                else
+                {
+                    report.AppendLine(Loc.Get("Splyt_Report_UsbOk"));
+                    await DedicateSelectedUsbDevicesAsync(report, password);
+                }
             }
 
             if (RememberCredentials) VmCredentialStore.Save(Vm.Name, Username, password);
@@ -270,6 +322,37 @@ public sealed class SplytSetupDialogViewModel : ViewModelBase
 
             Finish(report, paired);
         });
+    }
+
+    /// <summary>Confie a la VM les peripheriques coches dans cette fenetre.
+    ///
+    /// Echec par peripherique et non global : qu'un clavier refuse de partir ne
+    /// doit pas empecher la souris d'y arriver, ni faire passer toute la
+    /// configuration pour ratee.</summary>
+    private async Task DedicateSelectedUsbDevicesAsync(StringBuilder report, string password)
+    {
+        // Deja rattaches : rien a refaire, et surtout rien a defaire.
+        var wanted = UsbDevices.Where(d => d.IsSelected && !d.Attached).ToList();
+        if (wanted.Count == 0) return;
+
+        foreach (var device in wanted)
+        {
+            CurrentStep = Loc.Get("Splyt_Step_UsbDevice", device.Description);
+
+            var (shared, shareError) = await _vmService.SetUsbShareAsync(device.BusId, share: true);
+            if (shared is null)
+            {
+                report.AppendLine(Loc.Get("Splyt_Report_UsbDeviceFailed", device.Description, shareError));
+                continue;
+            }
+
+            var (attached, attachError) = await _vmService.SetVmUsbAttachAsync(
+                Vm.Name, device.BusId, attach: true, ResolveUsername(Username), password);
+
+            report.AppendLine(attached is not null
+                ? Loc.Get("Splyt_Report_UsbDeviceOk", device.Description)
+                : Loc.Get("Splyt_Report_UsbDeviceFailed", device.Description, attachError));
+        }
     }
 
     private void Advance(int step, string labelKey)
