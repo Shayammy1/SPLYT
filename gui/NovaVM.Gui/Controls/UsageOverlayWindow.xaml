@@ -16,13 +16,12 @@
         </Border.Effect>
 
         <StackPanel MinWidth="168">
-            <Grid Margin="0,0,0,8">
-                <TextBlock Text="{markup:Tr Overlay_Title}" FontSize="10.5" FontWeight="SemiBold"
-                           Foreground="#8A93A5" VerticalAlignment="Center" />
-                <TextBlock Text="{markup:Tr Overlay_Close}" FontSize="10.5" Cursor="Hand"
-                           HorizontalAlignment="Right" Foreground="#8A93A5"
-                           MouseLeftButtonDown="OnCloseClicked" />
-            </Grid>
+            <!-- Pas de bouton de fermeture : la superposition ne se retire que par
+                 le bouton de la page d'accueil de SPLYT. Une croix ici la ferait
+                 disparaitre sur un clic malheureux, alors qu'on la veut posee la
+                 tant qu'on ne decide pas le contraire. -->
+            <TextBlock Text="{markup:Tr Overlay_Title}" FontSize="10.5" FontWeight="SemiBold"
+                       Foreground="#8A93A5" Margin="0,0,0,8" />
 
             <Grid Margin="0,0,0,6">
                 <TextBlock Text="CPU" FontSize="12" Foreground="#C7CEDB" />

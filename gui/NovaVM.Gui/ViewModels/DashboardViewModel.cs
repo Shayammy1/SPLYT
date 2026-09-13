@@ -95,14 +95,15 @@ public sealed class DashboardViewModel : ViewModelBase
     {
         if (_overlay is not null)
         {
-            _overlay.Close();
+            // CloseFromToggle et non Close : la fenetre refuse toute autre
+            // fermeture, y compris Alt+F4, pour ne pas disparaitre par accident.
+            _overlay.CloseFromToggle();
             return;
         }
 
-        var window = new Controls.UsageOverlayWindow
+        var window = new Controls.UsageOverlayWindow(System.Windows.Application.Current?.MainWindow)
         {
             DataContext = this,
-            Owner = System.Windows.Application.Current?.MainWindow,
         };
 
         // Refermee par sa croix ou par la fermeture de SPLYT : dans les deux cas
