@@ -89,10 +89,13 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <!-- Temoin d'identification : bouger la souris ou
                                                      appuyer sur une touche allume sa ligne. -->
-                                                <Ellipse Width="9" Height="9" Margin="0,0,9,0" VerticalAlignment="Center"
-                                                         Fill="{StaticResource BorderBrush2}">
+                                                <!-- Fill pose par le style, jamais en attribut :
+                                                     une valeur locale l'emporte sur les
+                                                     declencheurs (voir VmListView). -->
+                                                <Ellipse Width="9" Height="9" Margin="0,0,9,0" VerticalAlignment="Center">
                                                     <Ellipse.Style>
                                                         <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="{StaticResource BorderBrush2}" />
                                                             <Setter Property="Opacity" Value="0.45" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsActive}" Value="True">

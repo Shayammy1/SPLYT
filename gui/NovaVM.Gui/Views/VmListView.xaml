@@ -909,11 +909,17 @@
 
                                                     <!-- Temoin d'identification : s'allume quand ce
                                                          peripherique est manipule. -->
+                                                    <!-- Fill est pose PAR LE STYLE et jamais en
+                                                         attribut : en WPF une valeur locale l'emporte
+                                                         sur tout declencheur de style. Ecrit
+                                                         Fill="..." sur l'Ellipse, le temoin ne
+                                                         changeait jamais de couleur - seule
+                                                         l'opacite bougeait, ce qui ne se voit pas. -->
                                                     <Ellipse Grid.Column="0" Width="10" Height="10" Margin="0,0,12,0"
-                                                             VerticalAlignment="Center"
-                                                             Fill="{StaticResource BorderBrush2}">
+                                                             VerticalAlignment="Center">
                                                         <Ellipse.Style>
                                                             <Style TargetType="Ellipse">
+                                                                <Setter Property="Fill" Value="{StaticResource BorderBrush2}" />
                                                                 <Setter Property="Opacity" Value="0.45" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsActive}" Value="True">
