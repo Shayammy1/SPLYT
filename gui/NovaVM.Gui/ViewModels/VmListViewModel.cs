@@ -802,6 +802,43 @@ public sealed class VmListViewModel : ViewModelBase
     {
         await ChangeStateAsync(_vmService.StartVmAsync);
         if (SelectedVm is { State: VmState.Running, UnattendPending: false }) ConsoleRequested?.Invoke(this, SelectedVm);
+        _ = ApplyUsbReservationsAsync(SelectedVm);
+    }
+
+    /// <summary>Confie a la VM qui vient de demarrer les peripheriques qui lui
+    /// avaient ete reserves machine eteinte. Volontairement sans await : Windows
+    /// met une bonne minute a etre joignable, et l'interface ne doit pas rester
+    /// figee pendant ce temps.
+    ///
+    /// Une seule fois suffit par peripherique : le client de l'invite memorise le
+    /// rattachement ("usbip port --stash") et une tache au demarrage le retablit
+    /// ensuite tout seul. Ce chemin ne sert donc qu'au premier contact, et aux VMs
+    /// qui auraient perdu leur memoire.</summary>
+    private async Task ApplyUsbReservationsAsync(VirtualMachine? vm)
+    {
+        if (vm is null || vm.ReservedUsbBusIds.Count == 0) return;
+
+        // Identifiants : ceux qui sont saisis, sinon ceux qui ont ete memorises.
+        // Sans eux on ne dit rien de plus - l'utilisateur reste libre de confier
+        // ses peripheriques a la main, et un avertissement surgissant a chaque
+        // demarrage serait plus penible qu'utile.
+        var username = ResolveVddUsername(VddUsername);
+        var password = VddGetPassword?.Invoke() ?? "";
+        if (string.IsNullOrEmpty(password) && VmCredentialStore.TryLoad(vm.Name, out var u, out var p))
+        {
+            username = u;
+            password = p;
+        }
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password)) return;
+
+        if (!await _vmService.WaitForGuestReadyAsync(vm.Name)) return;
+
+        foreach (var busId in vm.ReservedUsbBusIds)
+        {
+            await _vmService.SetVmUsbAttachAsync(vm.Name, busId, attach: true, username, password);
+        }
+
+        await RefreshUsbDevicesAsync();
     }
 
     /// <summary>Demarre la VM SANS ouvrir sa console : utilise juste apres la
@@ -1154,9 +1191,18 @@ public sealed class VmListViewModel : ViewModelBase
         {
             // Les peripheriques d'entree d'abord : c'est une souris ou un clavier
             // que l'utilisateur vient chercher ici, pas sa cle USB.
+            // La liste des peripheriques est celle de l'HOTE, la reservation celle
+            // de la VM : c'est ici que les deux se rejoignent.
+            var reserves = SelectedVm?.ReservedUsbBusIds ?? Array.Empty<string>();
+            var enMarche = SelectedVm?.State == VmState.Running;
+
             foreach (var device in list.Devices.OrderByDescending(d => d.LikelyInput).ThenBy(d => d.BusId))
             {
-                UsbDevices.Add(new UsbDeviceItemViewModel(device));
+                UsbDevices.Add(new UsbDeviceItemViewModel(device)
+                {
+                    Reserved = device.BusId is not null && reserves.Contains(device.BusId),
+                    VmIsRunning = enMarche,
+                });
             }
         }
         OnPropertyChanged(nameof(HasNoUsbDevices));
@@ -1197,6 +1243,45 @@ public sealed class VmListViewModel : ViewModelBase
         await RefreshUsbDevicesAsync();
     }
 
+    /// <summary>Promet le peripherique a la VM eteinte, ou retire la promesse. Le
+    /// partage cote hote est fait tout de suite - il ne demande pas la VM et
+    /// prepare le terrain - mais le peripherique reste utilisable sur l'hote tant
+    /// que personne ne l'a saisi.</summary>
+    private async Task ReserveUsbDeviceAsync(UsbDeviceItemViewModel device)
+    {
+        if (SelectedVm is null) return;
+
+        var reserver = !device.Reserved;
+        UsbStatusText = Loc.Get(reserver ? "VmList_Usb_Reserving" : "VmList_Usb_Unreserving", device.Description);
+
+        // Partager d'abord quand on reserve, cesser de partager en dernier quand on
+        // libere : dans les deux sens, la preference ne doit jamais promettre un
+        // peripherique que l'hote n'a pas prepare.
+        if (reserver)
+        {
+            var (shared, shareError) = await _vmService.SetUsbShareAsync(device.BusId, share: true);
+            if (shared is null)
+            {
+                UsbStatusText = shareError ?? Loc.Get("VmList_Usb_ShareFailed");
+                return;
+            }
+        }
+
+        var (reservation, error) = await _vmService.SetVmUsbReservationAsync(SelectedVm.Name, device.BusId, reserver);
+        if (reservation is null)
+        {
+            UsbStatusText = error ?? Loc.Get("VmList_Usb_ReserveFailed");
+            await RefreshUsbDevicesAsync();
+            return;
+        }
+
+        if (!reserver) await _vmService.SetUsbShareAsync(device.BusId, share: false);
+
+        SelectedVm.UsbBusIds = reservation.UsbBusIds ?? "";
+        UsbStatusText = reservation.Message;
+        await RefreshUsbDevicesAsync();
+    }
+
     /// <summary>Donne le peripherique a la VM, ou le rend a l'hote.
     ///
     /// Deux appels et non un seul : le partage cote hote demande l'elevation
@@ -1206,6 +1291,14 @@ public sealed class VmListViewModel : ViewModelBase
     private async Task ToggleUsbDeviceAsync(UsbDeviceItemViewModel device)
     {
         if (SelectedVm is null) return;
+
+        // Machine eteinte : on ne peut que promettre. Le rattachement reel se fera
+        // au demarrage suivant (voir ApplyUsbReservationsAsync).
+        if (SelectedVm.State != VmState.Running)
+        {
+            await ReserveUsbDeviceAsync(device);
+            return;
+        }
 
         var password = VddGetPassword?.Invoke() ?? "";
         if (string.IsNullOrEmpty(password))
@@ -1424,6 +1517,7 @@ public sealed class VmListViewModel : ViewModelBase
         // demarrage sur CD.
         OsInstalled = vm.OsInstalled,
         NeedsBootKeyPress = vm.NeedsBootKeyPress,
+        UsbBusIds = vm.UsbBusIds,
         UnattendPending = vm.UnattendPending,
         UnattendStage = vm.UnattendStage,
         UnattendPercent = vm.UnattendPercent,

@@ -28,6 +28,7 @@ public sealed class VirtualMachine : ObservableObject
     private string? _isoPath;
     private bool _osInstalled;
     private bool _needsBootKeyPress;
+    private string _usbBusIds = "";
     private bool _unattendPending;
     private string _unattendStage = "";
     private int _unattendPercent;
@@ -77,6 +78,19 @@ public sealed class VirtualMachine : ObservableObject
     /// from CD or DVD...", que la console fait a la place de l'utilisateur (voir
     /// VmConsoleHost.SendBootKeyBurst).</summary>
     public bool NeedsBootKeyPress { get => _needsBootKeyPress; set => SetProperty(ref _needsBootKeyPress, value); }
+
+    /// <summary>Ports USB reserves a cette VM ("3-3,1-4"). La reservation se pose
+    /// machine eteinte ; le rattachement reel suit des que la VM est prete.</summary>
+    public string UsbBusIds
+    {
+        get => _usbBusIds;
+        set { if (SetProperty(ref _usbBusIds, value)) OnPropertyChanged(nameof(ReservedUsbBusIds)); }
+    }
+
+    /// <summary>La meme liste, decoupee, pour interroger l'appartenance sans
+    /// refaire le decoupage a chaque ligne de la liste des peripheriques.</summary>
+    public IReadOnlyList<string> ReservedUsbBusIds =>
+        UsbBusIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>Vrai tant que l'installation automatique de Windows tourne. La VM
     /// est alors entierement cachee : pas de console, pas de flux - il n'y a rien
@@ -155,6 +169,7 @@ public sealed class VirtualMachine : ObservableObject
         IsoPath = dto.IsoPath,
         OsInstalled = dto.OsInstalled,
         NeedsBootKeyPress = dto.NeedsBootKeyPress,
+        UsbBusIds = dto.UsbBusIds ?? "",
         UnattendPending = dto.UnattendPending,
         UnattendStage = dto.UnattendStage ?? "",
         UnattendPercent = dto.UnattendPercent,
@@ -179,6 +194,7 @@ public sealed class VirtualMachine : ObservableObject
         IsoPath = dto.IsoPath;
         OsInstalled = dto.OsInstalled;
         NeedsBootKeyPress = dto.NeedsBootKeyPress;
+        UsbBusIds = dto.UsbBusIds ?? "";
         UnattendPending = dto.UnattendPending;
         UnattendStage = dto.UnattendStage ?? "";
         UnattendPercent = dto.UnattendPercent;

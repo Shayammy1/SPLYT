@@ -35,6 +35,11 @@ public sealed class VirtualMachineDto
     /// <summary>Vrai tant qu'une installation automatique de Windows tourne dans
     /// cette VM : SPLYT la garde alors entierement cachee (aucune console) et
     /// affiche une barre de progression a sa place.</summary>
+    /// <summary>Ports USB reserves a cette VM ("3-3,1-4"), separes par des
+    /// virgules. Permet de designer les peripheriques a lui confier meme quand
+    /// elle est eteinte.</summary>
+    public string? UsbBusIds { get; set; }
+
     public bool UnattendPending { get; set; }
 
     /// <summary>Etape en cours de cette installation ("starting", "boot", "copy",
@@ -303,6 +308,20 @@ public sealed class UsbRedirectionSetupDto
     public bool Installed { get; set; }
     public string? Path { get; set; }
     public string? Version { get; set; }
+    public string? Message { get; set; }
+}
+
+/// <summary>Reponse de Set-NovaVmUsbReservation.ps1 : le peripherique est promis a
+/// la VM, le rattachement reel suivra quand elle sera prete.</summary>
+public sealed class UsbReservationDto
+{
+    public string? BusId { get; set; }
+    public bool Reserved { get; set; }
+
+    /// <summary>La liste complete apres modification ("3-3,1-4"), pour remettre le
+    /// modele de la VM a jour sans relire toute la liste des VMs.</summary>
+    public string? UsbBusIds { get; set; }
+
     public string? Message { get; set; }
 }
 

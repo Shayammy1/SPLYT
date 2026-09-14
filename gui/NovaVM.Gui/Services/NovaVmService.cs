@@ -584,6 +584,21 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    /// <summary>Reserve (ou libere) un peripherique pour une VM, sans la contacter :
+    /// c'est ce qui permet de designer clavier et souris machine eteinte. Ni
+    /// elevation ni identifiants - cette moitie-la n'ecrit qu'une preference.</summary>
+    public async Task<(UsbReservationDto? Result, string? Error)> SetVmUsbReservationAsync(
+        string name, string busId, bool reserved)
+    {
+        var result = await RunAsync("Set-NovaVmUsbReservation.ps1",
+            $"Reservation du peripherique {busId} pour '{name}'",
+            ("Name", name), ("BusId", busId), ("Reserved", reserved ? "true" : "false"));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<UsbReservationDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     /// <summary>Peripheriques USB de l'hote et leur etat. Lecture seule, donc ni
     /// elevation ni identifiants.</summary>
     public async Task<UsbDeviceListDto?> GetUsbDevicesAsync()

@@ -548,6 +548,11 @@ function ConvertTo-NovaVmDto {
         isoPath               = $isoPath
         needsBootKeyPress     = $needsBootKeyPress
         osInstalled           = $osInstalled
+        # Peripheriques USB reserves a cette VM ("3-3,1-4"). Cote GUI, c'est ce
+        # qui permet de cocher les lignes concernees dans l'onglet Peripheriques
+        # meme quand la VM est eteinte, et de les lui confier des qu'elle est
+        # prete (voir Set-NovaVmUsbReservation.ps1).
+        usbBusIds             = $(if ($prefs.usbBusIds) { [string]$prefs.usbBusIds } else { "" })
         unattendPending       = $unattendPending
         unattendStage         = $unattendStage
         unattendPercent       = $unattendPercent

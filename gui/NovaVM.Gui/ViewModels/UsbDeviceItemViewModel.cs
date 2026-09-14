@@ -21,6 +21,8 @@ public sealed class UsbDeviceItemViewModel : ObservableObject
     private string? _clientIp;
     private bool _isSelected;
     private bool _isActive;
+    private bool _reserved;
+    private bool _vmIsRunning;
 
     public UsbDeviceItemViewModel(UsbDeviceDto dto)
     {
@@ -95,16 +97,43 @@ public sealed class UsbDeviceItemViewModel : ObservableObject
     /// <summary>Date du dernier evenement, lue par le temporisateur qui eteint.</summary>
     public DateTime LastActivityUtc { get; set; }
 
-    /// <summary>Ce que fait le bouton de la ligne : donner a la VM, ou rendre.</summary>
-    public string ActionLabel => Attached
-        ? Loc.Get("VmList_Usb_GiveBack")
-        : Loc.Get("VmList_Usb_GiveToVm");
+    /// <summary>Ce peripherique est promis a la VM selectionnee. Se pose machine
+    /// eteinte, quand le rattachement reel est impossible : "usbip attach" tourne
+    /// dans l'invite et va chercher le peripherique par le reseau.</summary>
+    public bool Reserved
+    {
+        get => _reserved;
+        set { if (SetProperty(ref _reserved, value)) NotifyDerived(); }
+    }
+
+    /// <summary>Etat de la VM selectionnee, recopie a chaque rafraichissement : c'est
+    /// lui qui decide si le bouton de la ligne confie le peripherique tout de suite
+    /// ou se contente de le reserver.</summary>
+    public bool VmIsRunning
+    {
+        get => _vmIsRunning;
+        set { if (SetProperty(ref _vmIsRunning, value)) NotifyDerived(); }
+    }
+
+    /// <summary>Ce que fait le bouton de la ligne. Quatre cas et non deux : machine
+    /// eteinte, on ne peut que promettre.</summary>
+    public string ActionLabel
+    {
+        get
+        {
+            if (!VmIsRunning) return Loc.Get(Reserved ? "VmList_Usb_Unreserve" : "VmList_Usb_Reserve");
+            return Loc.Get(Attached ? "VmList_Usb_GiveBack" : "VmList_Usb_GiveToVm");
+        }
+    }
 
     public string StateText
     {
         get
         {
             if (Attached) return Loc.Get("VmList_Usb_State_Attached", ClientIp ?? "");
+            // La reservation prime sur "partage" dans l'affichage : c'est
+            // l'information utile, et un peripherique reserve est toujours partage.
+            if (Reserved) return Loc.Get("VmList_Usb_State_Reserved");
             if (Shared) return Loc.Get("VmList_Usb_State_Shared");
             return Loc.Get("VmList_Usb_State_OnHost");
         }

@@ -968,10 +968,7 @@
                                                             Style="{StaticResource GhostButtonStyle}"
                                                             Command="{Binding DataContext.ToggleUsbDeviceCommand,
                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}"
-                                                            IsEnabled="{Binding DataContext.SelectedVm.IsRunning,
-                                                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            ToolTip="{markup:Tr VmList_Usb_NeedsRunning_Tooltip}" />
+                                                            CommandParameter="{Binding}" />
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
