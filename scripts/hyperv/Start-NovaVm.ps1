@@ -26,12 +26,22 @@ param(
 
 Import-Module (Join-Path $PSScriptRoot "NovaVm.Common.psm1") -Force
 
+# Chaque argument est protege par des guillemets, et ce n'est pas du zele :
+# Start-Process -ArgumentList colle les elements du tableau avec des espaces SANS
+# rien proteger. Installe dans "C:\Program Files\SPLYT", le chemin du script se
+# coupait donc a l'espace, PowerShell recevait "-File C:\Program" et mourait
+# aussitot - fenetre cachee, aucune erreur visible.
+#
+# Consequence : l'installation automatique ne demarrait jamais chez personne, et
+# restait a 0 % indefiniment. Invisible en developpement, ou le depot vit sous un
+# chemin sans espace : le defaut n'apparait que sur une VRAIE installation.
 function Start-NovaDetachedScript {
     param([Parameter(Mandatory)][string]$ScriptName, [Parameter(Mandatory)][string]$Name)
+    $script = Join-Path $PSScriptRoot $ScriptName
     Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -ArgumentList @(
-        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-        (Join-Path $PSScriptRoot $ScriptName),
-        "-Name", $Name
+        "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", "`"$script`"",
+        "-Name", "`"$Name`""
     )
 }
 
@@ -54,10 +64,14 @@ Invoke-NovaAction {
     if ($dvd -and $dvd.Path -and (Get-NovaVmPreferences -Name $Name).unattendPending) {
         $disque = (Get-VMHardDiskDrive -VMName $Name -ErrorAction SilentlyContinue | Select-Object -First 1).Path
         $temoin = Join-Path $env:TEMP ("splyt-bootkey-" + [guid]::NewGuid().ToString("N") + ".pret")
+        # Memes guillemets, meme raison : chemin d'installation avec un espace.
+        $envoiTouche = Join-Path $PSScriptRoot "Send-NovaVmBootKey.ps1"
         Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -ArgumentList @(
-            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-            (Join-Path $PSScriptRoot "Send-NovaVmBootKey.ps1"),
-            "-VmName", $Name, "-DiskPath", "$disque", "-ReadyFile", $temoin
+            "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", "`"$envoiTouche`"",
+            "-VmName", "`"$Name`"",
+            "-DiskPath", "`"$disque`"",
+            "-ReadyFile", "`"$temoin`""
         )
 
         # On n'allume qu'une fois la rafale reellement en train de taper. Plafond

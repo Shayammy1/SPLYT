@@ -429,7 +429,10 @@ Invoke-NovaAction {
         # est tire au hasard par SPLYT, ne sert qu'a cette API locale, et n'est
         # visible que depuis l'interieur de cette VM - contrairement au mot de
         # passe Windows de l'utilisateur, lui toujours passe par stdin.
-        $credProcess = Start-Process -FilePath $exePath -ArgumentList "--creds", $WebUser, $WebPassword `
+        # Guillemets obligatoires : un identifiant ou un mot de passe contenant un
+        # espace serait coupe en deux arguments par Start-Process, qui ne protege
+        # rien de lui-meme.
+        $credProcess = Start-Process -FilePath $exePath -ArgumentList "--creds", "`"$WebUser`"", "`"$WebPassword`"" `
             -Wait -PassThru -WindowStyle Hidden
         if ($credProcess.ExitCode -ne 0) {
             throw "Sunshine a refuse de definir les identifiants de son interface web (code $($credProcess.ExitCode))."

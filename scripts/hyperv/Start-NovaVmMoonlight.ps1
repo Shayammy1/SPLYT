@@ -340,8 +340,12 @@ Invoke-NovaAction {
     }
 
     Write-NovaProgress "Ouverture de Moonlight"
+    # $AppName entre guillemets : un nom d'application Sunshine peut contenir un
+    # espace, et Start-Process colle les elements du tableau sans rien proteger -
+    # le nom se couperait en deux arguments (voir Start-NovaVm.ps1, ou le meme
+    # defaut empechait toute installation automatique de demarrer).
     $arguments = @(
-        "stream", $vmIp, $AppName,
+        "stream", $vmIp, "`"$AppName`"",
         "--resolution", $Resolution,
         "--fps", "$Fps",
         "--bitrate", "$BitrateKbps",
