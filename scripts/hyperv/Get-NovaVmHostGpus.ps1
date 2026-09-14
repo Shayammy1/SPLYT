@@ -37,10 +37,31 @@ Invoke-NovaAction {
         Where-Object { $_.Name -and $_.PNPDeviceID -like 'PCI\*' -and $_.Name -notmatch "Basic Render|Remote Desktop" } |
         ForEach-Object {
             $realVram = Get-NovaRealGpuVramBytes -PnpDeviceId $_.PNPDeviceID
+
+            # Integre ou dedie ? Un GPU integre au processeur est branche sur le bus
+            # PCI 0, a la racine ; une carte dediee vit derriere un pont PCIe, donc
+            # sur un bus superieur (verifie : bus 3 pour une RX 7900 XTX). Critere
+            # structurel, contrairement au nom - "AMD Radeon(TM) Graphics" ne dit
+            # pas s'il s'agit d'un iGPU de processeur ou d'une carte.
+            #
+            # Pourquoi ca compte : sur une machine qui a les deux, partitionner
+            # l'iGPU au lieu de la carte donne une VM sans puissance graphique.
+            # Remonte par un utilisateur avec un 9900X3D et une RTX 5080, ou le
+            # choix automatique tombait sur l'iGPU du processeur.
+            #
+            # Non lisible = considere comme dedie : mieux vaut ne pas retrograder
+            # une vraie carte a cause d'une propriete absente.
+            $integrated = $false
+            try {
+                $bus = (Get-PnpDeviceProperty -InstanceId $_.PNPDeviceID -KeyName 'DEVPKEY_Device_BusNumber' -ErrorAction Stop).Data
+                if ($null -ne $bus) { $integrated = ([int]$bus -eq 0) }
+            } catch { }
+
             [ordered]@{
                 name               = $_.Name
                 vramBytes          = if ($realVram) { $realVram } elseif ($_.AdapterRAM) { [int64]$_.AdapterRAM } else { 0 }
                 driverVersion      = $_.DriverVersion
+                integrated         = $integrated
                 partitionSupported = Test-NovaGpuPartitionable -PnpDeviceId $_.PNPDeviceID -PartitionableGpus $partitionableGpus
                 partitionCheckError = $partitionCheckError
             }

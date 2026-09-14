@@ -62,8 +62,11 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
         foreach (var gpu in hostGpus.Where(g => g.PartitionSupported)) AvailableGpus.Add(gpu.Name);
         AvailableGpus.Add(NoGpuOption);
 
-        // Heuristique "auto" : le premier GPU partitionnable detecte (souvent le seul).
-        _autoSelectedGpu = hostGpus.FirstOrDefault(g => g.PartitionSupported)?.Name;
+        // "Auto" = la meilleure carte, pas la premiere enumeree. Sur une machine
+        // qui a un GPU integre au processeur ET une carte dediee, l'iGPU est
+        // enumere en premier : "le premier partitionnable" partitionnait donc
+        // l'iGPU et donnait une VM sans puissance graphique.
+        _autoSelectedGpu = HostGpu.PickBest(hostGpus)?.Name;
 
         // Valeur par defaut adaptee a la machine : jamais plus que la moitie de
         // la limite raisonnable, jamais plus que la limite elle-meme.
@@ -143,6 +146,7 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(HasDedicatedVram));
                 OnPropertyChanged(nameof(NoDedicatedVram));
+                OnPropertyChanged(nameof(WarnIntegratedGpuChosen));
                 OnPropertyChanged(nameof(MaxGpuVramMb));
                 if (GpuVramMb > MaxGpuVramMb) GpuVramMb = MaxGpuVramMb;
             }
@@ -168,6 +172,18 @@ public sealed class CreateVmDialogViewModel : ViewModelBase
     /// cas le curseur "VRAM allouee" n'a rien de reel a doser et reste desactive,
     /// plutot que de laisser croire a un reglage qui ne veut rien dire.</summary>
     public bool HasDedicatedVram => (SelectedHostGpu?.VramBytes ?? 0) > 0;
+
+    /// <summary>Vrai quand le GPU retenu est celui du processeur ALORS QU'une carte
+    /// dediee existe. Le cas merite d'etre dit : la VM demarre, tout parait
+    /// configure, et la puissance graphique n'est simplement pas la.</summary>
+    public bool WarnIntegratedGpuChosen =>
+        SelectedHostGpu is { Integrated: true } &&
+        _hostGpus.Any(g => g.PartitionSupported && !g.Integrated);
+
+    /// <summary>Le nom de la carte dediee ignoree, pour que l'avertissement dise
+    /// quoi choisir a la place plutot que de seulement signaler un probleme.</summary>
+    public string DiscreteGpuName =>
+        _hostGpus.FirstOrDefault(g => g.PartitionSupported && !g.Integrated)?.Name ?? "";
 
     /// <summary>Inverse de HasDedicatedVram (voir NoIsoYet pour la meme raison :
     /// BoolToVisibilityConverter ne sait pas inverser).</summary>

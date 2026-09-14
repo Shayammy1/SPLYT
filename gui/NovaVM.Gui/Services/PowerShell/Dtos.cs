@@ -65,6 +65,10 @@ public sealed class HostGpuDto
     public string? Name { get; set; }
     public long VramBytes { get; set; }
     public string? DriverVersion { get; set; }
+
+    /// <summary>GPU integre au processeur (bus PCI 0) plutot que carte dediee.</summary>
+    public bool Integrated { get; set; }
+
     public bool PartitionSupported { get; set; }
     public string? PartitionCheckError { get; set; }
 }

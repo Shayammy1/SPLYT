@@ -475,6 +475,7 @@ public sealed class NovaVmService
             Name = d.Name ?? "GPU inconnu",
             VramBytes = d.VramBytes,
             DriverVersion = d.DriverVersion,
+            Integrated = d.Integrated,
             PartitionSupported = d.PartitionSupported,
             PartitionCheckError = d.PartitionCheckError,
         }).ToList();

@@ -147,6 +147,23 @@
                                        Visibility="{Binding NoDedicatedVram, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </StackPanel>
 
+                        <!-- Le GPU du processeur a ete retenu alors qu'une carte dediee
+                             existe. La VM demarrerait sans puissance graphique, sans que
+                             rien ne le signale : c'est le cas remonte par un utilisateur
+                             avec un processeur a iGPU et une carte dediee. -->
+                        <Border Margin="0,0,0,16" Padding="14,10" CornerRadius="10"
+                                Background="{StaticResource SurfaceElevatedBrush}"
+                                BorderBrush="{StaticResource WarningBrush}" BorderThickness="1"
+                                Visibility="{Binding WarnIntegratedGpuChosen, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Text="{markup:Tr CreateVm_IntegratedGpu_Title}" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="{markup:Tr CreateVm_IntegratedGpu_Why}" /><Run Text=" " /><Run Text="{Binding DiscreteGpuName, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="{markup:Tr CreateVm_IsoLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
                         <Grid Margin="0,6,0,4">
                             <Grid.ColumnDefinitions>
