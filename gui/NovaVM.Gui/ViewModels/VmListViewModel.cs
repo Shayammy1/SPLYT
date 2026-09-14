@@ -80,10 +80,13 @@ public sealed class VmListViewModel : ViewModelBase
         // qui n'a personne a qui parler sur une machine eteinte.
         InstallUsbGuestCommand = new AsyncRelayCommand(InstallUsbGuestAsync,
             () => SelectedVm is { State: VmState.Running });
-        // Confier un peripherique exige une VM demarree : le rattachement se fait
-        // DANS l'invite, par PowerShell Direct.
+        // Une VM selectionnee suffit, demarree ou non : c'est ToggleUsbDeviceAsync
+        // qui decide quoi faire. Machine demarree, il confie le peripherique tout
+        // de suite ; machine eteinte, il le reserve pour le prochain demarrage.
+        // Exiger l'etat Running ici grisait le bouton et rendait la reservation
+        // impossible a declencher, quoi qu'en dise le XAML.
         ToggleUsbDeviceCommand = new AsyncRelayCommand<UsbDeviceItemViewModel>(
-            ToggleUsbDeviceAsync, _ => SelectedVm is { State: VmState.Running });
+            ToggleUsbDeviceAsync, _ => SelectedVm is not null);
         AutoLogonEnableCommand = new AsyncRelayCommand(() => AutoLogonRunAsync(disable: false),
             () => SelectedVm is { State: VmState.Running } && !string.IsNullOrWhiteSpace(VddUsername));
         AutoLogonDisableCommand = new AsyncRelayCommand(() => AutoLogonRunAsync(disable: true),
@@ -831,12 +834,29 @@ public sealed class VmListViewModel : ViewModelBase
         }
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password)) return;
 
-        if (!await _vmService.WaitForGuestReadyAsync(vm.Name)) return;
+        UsbStatusText = Loc.Get("VmList_Usb_ApplyingReservations");
+        if (!await _vmService.WaitForGuestReadyAsync(vm.Name))
+        {
+            UsbStatusText = Loc.Get("VmList_Usb_ApplyReservationsNoGuest");
+            return;
+        }
 
+        // On rend compte du resultat : un rattachement qui echoue en silence au
+        // demarrage laisserait les deux souris piloter le meme curseur sans que
+        // rien n'explique pourquoi.
+        var confies = 0;
+        string? dernierEchec = null;
         foreach (var busId in vm.ReservedUsbBusIds)
         {
-            await _vmService.SetVmUsbAttachAsync(vm.Name, busId, attach: true, username, password);
+            var (attach, error) = await _vmService.SetVmUsbAttachAsync(
+                vm.Name, busId, attach: true, username, password);
+            if (attach is not null) confies++;
+            else dernierEchec = error;
         }
+
+        UsbStatusText = dernierEchec is null
+            ? Loc.Get("VmList_Usb_ReservationsApplied", confies)
+            : Loc.Get("VmList_Usb_ReservationsPartly", confies, vm.ReservedUsbBusIds.Count, dernierEchec);
 
         await RefreshUsbDevicesAsync();
     }
@@ -1484,6 +1504,7 @@ public sealed class VmListViewModel : ViewModelBase
         OpenConsoleCommand.RaiseCanExecuteChanged();
         CancelUnattendCommand.RaiseCanExecuteChanged();
         InstallUsbGuestCommand.RaiseCanExecuteChanged();
+        ToggleUsbDeviceCommand.RaiseCanExecuteChanged();
         RunSplytSetupCommand.RaiseCanExecuteChanged();
         LaunchWithMoonlightCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();
