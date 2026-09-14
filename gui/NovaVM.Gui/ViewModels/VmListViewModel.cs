@@ -31,6 +31,7 @@ public sealed class VmListViewModel : ViewModelBase
     private string? _usbStatusText;
     private string? _usbGuestStatusText;
     private string? _gamepadStatusText;
+    private GamepadProfileOption _selectedGamepadProfile = GamepadProfileOption.All[1];
     private string _gamingUsername = "";
     private bool _gamingRememberCredentials;
     private string? _gamingResultText;
@@ -85,6 +86,8 @@ public sealed class VmListViewModel : ViewModelBase
         // il faut pouvoir reessayer sans eteindre la VM : c'est aussi la seule
         // facon de voir POURQUOI un rattachement echoue.
         InstallGamepadCommand = new AsyncRelayCommand(InstallGamepadAsync,
+            () => SelectedVm is { State: VmState.Running });
+        ApplyGamepadProfileCommand = new AsyncRelayCommand(ApplyGamepadProfileAsync,
             () => SelectedVm is { State: VmState.Running });
         ApplyUsbReservationsCommand = new AsyncRelayCommand(
             () => ApplyUsbReservationsAsync(SelectedVm, interactif: true),
@@ -593,6 +596,19 @@ public sealed class VmListViewModel : ViewModelBase
     public AsyncRelayCommand InstallGamepadCommand { get; }
 
     public string? GamepadStatusText { get => _gamepadStatusText; private set => SetProperty(ref _gamepadStatusText, value); }
+
+    /// <summary>Applique a la VM la manette choisie ci-dessous.</summary>
+    public AsyncRelayCommand ApplyGamepadProfileCommand { get; }
+
+    /// <summary>Les cinq manettes que Sunshine sait emuler, relevees dans son
+    /// binaire plutot que devinees.</summary>
+    public IReadOnlyList<GamepadProfileOption> GamepadProfiles => GamepadProfileOption.All;
+
+    public GamepadProfileOption SelectedGamepadProfile
+    {
+        get => _selectedGamepadProfile;
+        set => SetProperty(ref _selectedGamepadProfile, value);
+    }
     public AsyncRelayCommand<UsbDeviceItemViewModel> ToggleUsbDeviceCommand { get; }
 
     /// <summary>Ouverture de session automatique dans la VM : le remede direct a
@@ -1366,6 +1382,33 @@ public sealed class VmListViewModel : ViewModelBase
             {
                 var (result, error) = await _vmService.InstallGamepadSupportAsync(vm.Name, username, password);
                 if (result is null) return error ?? Loc.Get("VmList_Gamepad_InstallFailed");
+
+                GamepadStatusText = result.Message;
+                return null;
+            }));
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Ecrit le choix dans sunshine.conf, a l'interieur de la VM. Le
+    /// redemarrage de Sunshine est fait par le script : sans lui, le reglage
+    /// n'aurait pris effet qu'au prochain allumage, et le bouton aurait eu l'air
+    /// sans effet.</summary>
+    private Task ApplyGamepadProfileAsync()
+    {
+        var vm = SelectedVm;
+        if (vm is null) return Task.CompletedTask;
+
+        var choix = SelectedGamepadProfile;
+        CredentialsRequested?.Invoke(this, new VmCredentialsDialogViewModel(
+            vm.Name,
+            Loc.Get("VmList_Gamepad_Profile_Title"),
+            choix.Description,
+            Loc.Get("VmList_Gamepad_Profile_Apply"),
+            async (username, password) =>
+            {
+                var (result, error) = await _vmService.SetGamepadProfileAsync(vm.Name, choix.Value, username, password);
+                if (result is null) return error ?? Loc.Get("VmList_Gamepad_Profile_Failed");
 
                 GamepadStatusText = result.Message;
                 return null;

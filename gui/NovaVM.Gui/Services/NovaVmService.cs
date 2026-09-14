@@ -617,6 +617,25 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    /// <summary>Lit ou change la manette que Sunshine fait apparaitre dans la VM.
+    /// "read" ne modifie rien : c'est ce qui permet d'afficher l'etat reel plutot
+    /// qu'une valeur devinee.</summary>
+    public async Task<(GamepadProfileDto? Result, string? Error)> SetGamepadProfileAsync(
+        string name, string profile, string username, string password)
+    {
+        var result = await _runner.RunWithCredentialAsync(
+            "Set-NovaVmGamepadProfile.ps1", username, password,
+            ("Name", name), ("GamepadProfile", profile));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Set-NovaVmGamepadProfile.ps1",
+            $"Manette emulee dans '{name}' ({profile}) : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<GamepadProfileDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     /// <summary>Peripheriques USB de l'hote et leur etat. Lecture seule, donc ni
     /// elevation ni identifiants.</summary>
     public async Task<UsbDeviceListDto?> GetUsbDevicesAsync()

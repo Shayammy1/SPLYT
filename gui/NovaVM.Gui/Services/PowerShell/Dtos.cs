@@ -335,6 +335,17 @@ public sealed class GamepadSetupDto
     public string? Message { get; set; }
 }
 
+/// <summary>Reponse de Set-NovaVmGamepadProfile.ps1 : quelle manette Sunshine
+/// fait apparaitre dans la VM.</summary>
+public sealed class GamepadProfileDto
+{
+    /// <summary>Valeur en place apres l'appel ("auto", "x360", "xone", "ds4", "switch").</summary>
+    public string? Current { get; set; }
+    public bool Changed { get; set; }
+    public bool Restarted { get; set; }
+    public string? Message { get; set; }
+}
+
 public sealed class UsbGuestSetupDto
 {
     public bool AlreadyInstalled { get; set; }
