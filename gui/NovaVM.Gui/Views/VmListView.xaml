@@ -912,10 +912,45 @@
                                             Command="{Binding RefreshUsbDevicesCommand}" />
                                 </WrapPanel>
 
+                                <!-- Recapitulatif des reservations, toujours en haut : c'est la
+                                     confirmation qu'on cherche des yeux apres avoir clique, et
+                                     elle ne doit pas dependre de l'endroit ou on se trouve dans
+                                     une liste qui peut faire plusieurs ecrans. -->
+                                <Border Margin="0,0,0,12" Padding="14,10" CornerRadius="10"
+                                        Background="{StaticResource SurfaceElevatedBrush}"
+                                        BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                        Visibility="{Binding HasUsbReservations, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{markup:Tr VmList_Usb_Reserved_Title}" FontWeight="SemiBold" FontSize="12"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
+                                        <TextBlock Text="{Binding UsbReservationSummary}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Le retour des actions vit ICI, au-dessus de la liste : place
+                                     en dessous, il tombait hors de l'ecran et chaque bouton avait
+                                     l'air de ne rien faire. -->
+                                <TextBlock Text="{Binding UsbStatusText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"
+                                           Visibility="{Binding UsbStatusText, Converter={StaticResource NullToVisibilityConverter}}" />
+
                                 <ItemsControl ItemsSource="{Binding UsbDevices}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,10">
+                                            <!-- Bordure d'accent quand le peripherique est reserve :
+                                                 la ligne se repere d'un coup d'oeil dans une liste
+                                                 ou toutes portent le meme nom. -->
+                                            <Border Margin="0,0,0,10">
+                                                <Border.Style>
+                                                    <Style TargetType="Border" BasedOn="{StaticResource SettingCardStyle}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Reserved}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
@@ -978,10 +1013,6 @@
                                 <TextBlock Text="{markup:Tr VmList_Usb_Empty}" TextWrapping="Wrap" FontSize="12"
                                            Foreground="{StaticResource TextMutedBrush}"
                                            Visibility="{Binding HasNoUsbDevices, Converter={StaticResource BoolToVisibilityConverter}}" />
-
-                                <TextBlock Text="{Binding UsbStatusText}" TextWrapping="Wrap" FontSize="11" FontFamily="Consolas"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,12,0,0"
-                                           Visibility="{Binding UsbStatusText, Converter={StaticResource NullToVisibilityConverter}}" />
 
                                 <TextBlock Text="{markup:Tr VmList_Usb_PortWarning}" TextWrapping="Wrap" FontSize="11"
                                            Foreground="{StaticResource TextMutedBrush}" Margin="0,14,0,0" />

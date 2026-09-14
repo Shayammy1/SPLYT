@@ -257,6 +257,7 @@ public sealed class VmListViewModel : ViewModelBase
             if (SetProperty(ref _selectedVm, value))
             {
                 LoadEditFieldsFromSelection();
+                NotifyUsbReservations();
                 OnPropertyChanged(nameof(CanRunSplytSetup));
                 OnPropertyChanged(nameof(CannotRunSplytSetup));
                 OnPropertyChanged(nameof(IsInstallingWindows));
@@ -523,6 +524,34 @@ public sealed class VmListViewModel : ViewModelBase
     }
 
     public bool HasNoUsbDevices => !UsbServerMissing && UsbDevices.Count == 0;
+
+    /// <summary>Vrai des qu'au moins un peripherique est promis a la VM selectionnee.</summary>
+    public bool HasUsbReservations => SelectedVm is not null && SelectedVm.ReservedUsbBusIds.Count > 0;
+
+    /// <summary>Les reservations en clair ("Souris (port 3-3) - Clavier (port 1-4)").
+    /// Les noms viennent de la liste des peripheriques quand elle est chargee ; sinon
+    /// on se rabat sur le numero de port, qui reste vrai meme materiel debranche.</summary>
+    public string UsbReservationSummary
+    {
+        get
+        {
+            if (SelectedVm is null) return "";
+            var lignes = SelectedVm.ReservedUsbBusIds.Select(busId =>
+            {
+                var connu = UsbDevices.FirstOrDefault(d => d.BusId == busId);
+                return connu is null
+                    ? Loc.Get("VmList_Usb_Reserved_Unplugged", busId)
+                    : Loc.Get("VmList_Usb_Reserved_Item", connu.Description, busId);
+            });
+            return string.Join("  -  ", lignes);
+        }
+    }
+
+    private void NotifyUsbReservations()
+    {
+        OnPropertyChanged(nameof(HasUsbReservations));
+        OnPropertyChanged(nameof(UsbReservationSummary));
+    }
 
     public string? UsbStatusText { get => _usbStatusText; private set => SetProperty(ref _usbStatusText, value); }
 
@@ -1226,6 +1255,7 @@ public sealed class VmListViewModel : ViewModelBase
             }
         }
         OnPropertyChanged(nameof(HasNoUsbDevices));
+        NotifyUsbReservations();
     }
 
     /// <summary>Pose le client USB/IP dans la VM, plus la tache qui rebranche les
