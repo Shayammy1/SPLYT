@@ -56,6 +56,12 @@
             <DataTemplate DataType="{x:Type vm:SunshineCredentialsDialogViewModel}">
                 <controls:SunshineCredentialsDialog />
             </DataTemplate>
+            <!-- Sans cette association, WPF ne sait pas quelle vue dessiner pour ce
+                 modele et se rabat sur son ToString() : on voit le voile s'assombrir
+                 et, a la place de la boite, le nom de la classe. -->
+            <DataTemplate DataType="{x:Type vm:VmCredentialsDialogViewModel}">
+                <controls:VmCredentialsDialog />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:EnhancedSessionFixDialogViewModel}">
                 <controls:EnhancedSessionFixDialog />
             </DataTemplate>
