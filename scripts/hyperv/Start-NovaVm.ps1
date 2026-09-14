@@ -45,6 +45,32 @@ Invoke-NovaAction {
         Start-NovaDetachedScript -ScriptName "Watch-NovaVmInstallComplete.ps1" -Name $Name
     }
 
+    # Installation automatique : personne n'ouvre de console, donc personne ne
+    # repond a l'invite "Press any key to boot from CD or DVD". C'est ce script
+    # qui s'en charge, et il part AVANT Start-VM : l'invite expire environ douze
+    # secondes apres la mise sous tension, tout ce qui retarde la premiere touche
+    # la fait manquer. Il recoit le chemin du disque tout prepare pour n'avoir
+    # besoin d'aucun module (voir son en-tete).
+    if ($dvd -and $dvd.Path -and (Get-NovaVmPreferences -Name $Name).unattendPending) {
+        $disque = (Get-VMHardDiskDrive -VMName $Name -ErrorAction SilentlyContinue | Select-Object -First 1).Path
+        $temoin = Join-Path $env:TEMP ("splyt-bootkey-" + [guid]::NewGuid().ToString("N") + ".pret")
+        Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -ArgumentList @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            (Join-Path $PSScriptRoot "Send-NovaVmBootKey.ps1"),
+            "-VmName", $Name, "-DiskPath", "$disque", "-ReadyFile", $temoin
+        )
+
+        # On n'allume qu'une fois la rafale reellement en train de taper. Plafond
+        # court : si quelque chose empeche ce temoin d'arriver, mieux vaut demarrer
+        # la VM sans lui - l'installation s'arretera sur l'invite, ce qui se voit et
+        # se rattrape - que de ne pas demarrer du tout.
+        $limite = (Get-Date).AddSeconds(15)
+        while (-not (Test-Path -LiteralPath $temoin) -and (Get-Date) -lt $limite) {
+            Start-Sleep -Milliseconds 50
+        }
+        Remove-Item -LiteralPath $temoin -Force -ErrorAction SilentlyContinue
+    }
+
     Start-VM -Name $Name -ErrorAction Stop
 
     $vm = Get-VM -Name $Name
