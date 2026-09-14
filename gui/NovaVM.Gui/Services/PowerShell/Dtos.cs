@@ -325,6 +325,16 @@ public sealed class UsbReservationDto
     public string? Message { get; set; }
 }
 
+/// <summary>Reponse de Install-NovaVmGamepad.ps1 : pilote de manette virtuelle
+/// pose dans la VM, pour que Sunshine puisse recreer la manette que Moonlight
+/// lui transmet.</summary>
+public sealed class GamepadSetupDto
+{
+    public bool AlreadyInstalled { get; set; }
+    public string? DriverState { get; set; }
+    public string? Message { get; set; }
+}
+
 public sealed class UsbGuestSetupDto
 {
     public bool AlreadyInstalled { get; set; }

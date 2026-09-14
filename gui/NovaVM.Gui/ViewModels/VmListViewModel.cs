@@ -30,6 +30,7 @@ public sealed class VmListViewModel : ViewModelBase
     private bool _usbServerMissing;
     private string? _usbStatusText;
     private string? _usbGuestStatusText;
+    private string? _gamepadStatusText;
     private string _gamingUsername = "";
     private bool _gamingRememberCredentials;
     private string? _gamingResultText;
@@ -83,6 +84,8 @@ public sealed class VmListViewModel : ViewModelBase
         // Declencheur manuel du rattachement. Le demarrage le fait tout seul, mais
         // il faut pouvoir reessayer sans eteindre la VM : c'est aussi la seule
         // facon de voir POURQUOI un rattachement echoue.
+        InstallGamepadCommand = new AsyncRelayCommand(InstallGamepadAsync,
+            () => SelectedVm is { State: VmState.Running });
         ApplyUsbReservationsCommand = new AsyncRelayCommand(
             () => ApplyUsbReservationsAsync(SelectedVm, interactif: true),
             () => SelectedVm is { State: VmState.Running } && HasUsbReservations);
@@ -585,6 +588,11 @@ public sealed class VmListViewModel : ViewModelBase
     /// <summary>Confie maintenant a la VM les peripheriques qui lui sont reserves,
     /// sans attendre un redemarrage.</summary>
     public AsyncRelayCommand ApplyUsbReservationsCommand { get; }
+
+    /// <summary>Pose dans la VM le pilote de manette virtuelle du mode jeu.</summary>
+    public AsyncRelayCommand InstallGamepadCommand { get; }
+
+    public string? GamepadStatusText { get => _gamepadStatusText; private set => SetProperty(ref _gamepadStatusText, value); }
     public AsyncRelayCommand<UsbDeviceItemViewModel> ToggleUsbDeviceCommand { get; }
 
     /// <summary>Ouverture de session automatique dans la VM : le remede direct a
@@ -1341,6 +1349,31 @@ public sealed class VmListViewModel : ViewModelBase
     /// peripheriques apres un redemarrage. Jusqu'ici ce n'etait fait que par le
     /// bouton SPLYT, ce qui obligeait a relancer toute la configuration en un
     /// clic pour la seule moitie invite.</summary>
+    /// <summary>Prise en charge des manettes. Meme forme que l'installation du
+    /// client USB : les identifiants sont demandes dans une boite, ici, et non
+    /// repris d'un champ d'un autre onglet.</summary>
+    private Task InstallGamepadAsync()
+    {
+        var vm = SelectedVm;
+        if (vm is null) return Task.CompletedTask;
+
+        CredentialsRequested?.Invoke(this, new VmCredentialsDialogViewModel(
+            vm.Name,
+            Loc.Get("VmList_Gamepad_Title"),
+            Loc.Get("VmList_Gamepad_Note"),
+            Loc.Get("VmList_Gamepad_Install"),
+            async (username, password) =>
+            {
+                var (result, error) = await _vmService.InstallGamepadSupportAsync(vm.Name, username, password);
+                if (result is null) return error ?? Loc.Get("VmList_Gamepad_InstallFailed");
+
+                GamepadStatusText = result.Message;
+                return null;
+            }));
+
+        return Task.CompletedTask;
+    }
+
     private Task InstallUsbGuestAsync()
     {
         var vm = SelectedVm;
@@ -1636,6 +1669,7 @@ public sealed class VmListViewModel : ViewModelBase
         InstallUsbGuestCommand.RaiseCanExecuteChanged();
         ToggleUsbDeviceCommand.RaiseCanExecuteChanged();
         ApplyUsbReservationsCommand.RaiseCanExecuteChanged();
+        InstallGamepadCommand.RaiseCanExecuteChanged();
         RunSplytSetupCommand.RaiseCanExecuteChanged();
         LaunchWithMoonlightCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();

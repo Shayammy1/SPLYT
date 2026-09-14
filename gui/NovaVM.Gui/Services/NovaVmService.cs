@@ -599,6 +599,24 @@ public sealed class NovaVmService
         return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
     }
 
+    /// <summary>Pose dans la VM le pilote de manette virtuelle, sans lequel
+    /// Sunshine n'a rien ou brancher l'entree manette que Moonlight lui
+    /// transmet. Son propre installeur ne le fournit pas.</summary>
+    public async Task<(GamepadSetupDto? Result, string? Error)> InstallGamepadSupportAsync(
+        string name, string username, string password)
+    {
+        var result = await _runner.RunWithCredentialAsync(
+            "Install-NovaVmGamepad.ps1", username, password, ("Name", name));
+
+        _log.Log(result.Success ? LogLevel.Success : LogLevel.Error, "Install-NovaVmGamepad.ps1",
+            $"Installation de la prise en charge des manettes dans '{name}' : " + (result.Success ? "succes" : "echec"),
+            result.Success ? null : (result.Error ?? result.RawError));
+
+        if (!result.Success) return (null, result.Error ?? result.RawError);
+        var dto = result.DeserializeData<GamepadSetupDto>();
+        return dto is null ? (null, "Reponse invalide du script.") : (dto, null);
+    }
+
     /// <summary>Peripheriques USB de l'hote et leur etat. Lecture seule, donc ni
     /// elevation ni identifiants.</summary>
     public async Task<UsbDeviceListDto?> GetUsbDevicesAsync()

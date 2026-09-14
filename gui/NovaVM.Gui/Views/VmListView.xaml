@@ -887,6 +887,29 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Manettes. Rangee ici et non dans l'onglet Affichage :
+                                     c'est un peripherique, et c'est ce que l'utilisateur
+                                     vient chercher dans cet onglet. -->
+                                <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="{markup:Tr VmList_Gamepad_Title}" FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                        <TextBlock Text="{markup:Tr VmList_Gamepad_Note}" TextWrapping="Wrap"
+                                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10" />
+                                        <TextBlock Text="{markup:Tr VmList_Gamepad_NoPlugNeeded}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10" />
+                                        <TextBlock Text="{markup:Tr VmList_Usb_Guest_NeedsRunning}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource WarningBrush}" Margin="0,0,0,10"
+                                                   Visibility="{Binding SelectedVm.IsRunning, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                        <Button Content="{markup:Tr VmList_Gamepad_Install}" Style="{StaticResource GhostButtonStyle}"
+                                                HorizontalAlignment="Left" Command="{Binding InstallGamepadCommand}" />
+                                        <TextBlock Text="{Binding GamepadStatusText}" TextWrapping="Wrap" FontSize="11"
+                                                   FontFamily="Consolas" Margin="0,10,0,0"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Visibility="{Binding GamepadStatusText, Converter={StaticResource NullToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Pourquoi une VM eteinte ne peut rien recevoir. La question
                                      revient naturellement : cote hote, ceder le peripherique
                                      marcherait tres bien machine eteinte ; c'est l'autre moitie
