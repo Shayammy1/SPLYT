@@ -111,14 +111,21 @@ public sealed class NovaVmService
     /// VmListViewModel apres un demarrage) et non de ce service : c'est elle qui
     /// sait presenter la VM dans l'habillage de SPLYT, alors qu'on ouvrait avant
     /// la fenetre vmconnect brute, avec son menu et sa barre d'outils Hyper-V.</summary>
-    public async Task<VirtualMachine?> StartVmAsync(string name)
+    public async Task<VirtualMachine?> StartVmAsync(string name) => (await StartVmDetailedAsync(name)).Vm;
+
+    /// <summary>Demarrage qui REND SON ERREUR au lieu de la laisser au seul
+    /// Journal. Indispensable a l'installation automatique : la VM y est
+    /// demarree par SPLYT lui-meme, sans console ; un echec silencieux laissait
+    /// la barre de progression a zero pour toujours, sans un mot. Remonte par un
+    /// utilisateur exactement sous cette forme.</summary>
+    public async Task<(VirtualMachine? Vm, string? Error)> StartVmDetailedAsync(string name)
     {
         var result = await RunAsyncCore(
             "Start-NovaVm.ps1", $"Demarrage de '{name}'", silent: false, onProgress: null, ("Name", name));
-        if (!result.Success) return null;
+        if (!result.Success) return (null, result.Error ?? result.RawError);
 
         var dto = result.DeserializeData<VirtualMachineDto>();
-        return dto is null ? null : VirtualMachine.FromDto(dto);
+        return dto is null ? (null, "Reponse invalide du script Start-NovaVm.ps1.") : (VirtualMachine.FromDto(dto), null);
     }
 
 

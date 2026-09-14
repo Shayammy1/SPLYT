@@ -20,8 +20,21 @@ Invoke-NovaAction {
         $partitionCheckError = $_.Exception.Message
     }
 
+    # Seuls les GPU reellement branches sur le bus PCI sont retenus.
+    #
+    # Le filtre par NOM ne suffisait pas : un ecran virtuel installe sur l'hote
+    # (Virtual Display Driver, Parsec, DisplayLink, casque de realite virtuelle,
+    # session a distance...) apparait dans Win32_VideoController comme n'importe
+    # quel adaptateur, et se retrouvait propose dans la liste des GPU de SPLYT.
+    # Remonte par un utilisateur : "le GPU-P a tendance a choper les drivers
+    # virtuels deja existants de mon PC". Une liste de noms a exclure aurait
+    # toujours un train de retard sur le prochain pilote virtuel a la mode.
+    #
+    # Le bus, lui, ne ment pas : un peripherique d'affichage virtuel est enumere
+    # sous ROOT\, SWD\, UMB\ ou USB\, jamais sous PCI\ - et GPU-P exige un vrai
+    # GPU PCI. Le critere est donc structurel plutot que nominatif.
     $adapters = Get-CimInstance Win32_VideoController |
-        Where-Object { $_.Name -and $_.Name -notmatch "Basic Render|Remote Desktop" } |
+        Where-Object { $_.Name -and $_.PNPDeviceID -like 'PCI\*' -and $_.Name -notmatch "Basic Render|Remote Desktop" } |
         ForEach-Object {
             $realVram = Get-NovaRealGpuVramBytes -PnpDeviceId $_.PNPDeviceID
             [ordered]@{

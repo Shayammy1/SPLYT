@@ -816,6 +816,9 @@ public sealed class VmListViewModel : ViewModelBase
         // ici. On allume la machine nous-memes, sans console, et la progression
         // prend le relais. Volontairement sans await : la boite de creation doit
         // se refermer tout de suite, le demarrage suit tout seul.
+        // Volontairement sans await : la boite de creation doit se refermer tout
+        // de suite. Un echec ne passe plus inapercu pour autant - StartHiddenAsync
+        // rend alors la VM a l'utilisateur avec la raison.
         if (vm.UnattendPending) _ = StartHiddenAsync();
     }
 
@@ -993,7 +996,27 @@ public sealed class VmListViewModel : ViewModelBase
     /// doit rien voir d'autre que la barre de progression.</summary>
     public async Task StartHiddenAsync()
     {
-        await ChangeStateAsync(_vmService.StartVmAsync);
+        if (SelectedVm is null) return;
+        var vm = SelectedVm;
+
+        var (updated, error) = await _vmService.StartVmDetailedAsync(vm.Name);
+        if (updated is not null)
+        {
+            vm.UpdateFrom(ToDto(updated));
+            RaiseAllCanExecuteChanged();
+            VmsChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        // Le demarrage a echoue, et personne d'autre ne le dira : la VM n'a pas
+        // de console ouverte et la carte de progression resterait a zero
+        // indefiniment. On rend donc la machine a l'utilisateur, avec la raison.
+        ErrorMessage = Loc.Get("VmList_Unattend_StartFailed", error ?? Loc.Get("Common_UnknownError"));
+        await _vmService.CancelUnattendAsync(vm.Name);
+        await RefreshStatesAsync();
+        OnPropertyChanged(nameof(IsInstallingWindows));
+        RaiseAllCanExecuteChanged();
+        VmsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Abandonne l'installation automatique de la VM selectionnee : la
