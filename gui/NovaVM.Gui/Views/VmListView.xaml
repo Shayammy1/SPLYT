@@ -853,6 +853,26 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Moitie INVITE. C'est elle qui rend clavier et souris
+                                     independants : l'hote a beau ceder un peripherique,
+                                     sans ce client personne ne le recupere en face. Elle
+                                     etait jusqu'ici posee uniquement par le bouton SPLYT,
+                                     donc inaccessible seule. -->
+                                <Border Style="{StaticResource SettingCardStyle}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="{markup:Tr VmList_Usb_Guest_Title}" FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                        <TextBlock Text="{markup:Tr VmList_Usb_Guest_Note}" TextWrapping="Wrap"
+                                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10" />
+                                        <Button Content="{markup:Tr VmList_Usb_Guest_Install}" Style="{StaticResource GhostButtonStyle}"
+                                                HorizontalAlignment="Left" Command="{Binding InstallUsbGuestCommand}"
+                                                ToolTip="{markup:Tr VmList_Usb_Guest_Tooltip}" />
+                                        <TextBlock Text="{markup:Tr VmList_Usb_Guest_NeedsRunning}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"
+                                                   Visibility="{Binding SelectedVm.IsRunning, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Border>
+
                                 <TextBlock Text="{markup:Tr VmList_Usb_LedHint}" TextWrapping="Wrap" FontSize="11"
                                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12" />
 

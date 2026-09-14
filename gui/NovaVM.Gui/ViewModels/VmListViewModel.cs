@@ -75,6 +75,10 @@ public sealed class VmListViewModel : ViewModelBase
         UsbActivity = new Services.UsbActivityTracker(() => UsbDevices);
         RefreshUsbDevicesCommand = new AsyncRelayCommand(RefreshUsbDevicesAsync);
         InstallUsbRedirectionCommand = new AsyncRelayCommand(InstallUsbRedirectionAsync);
+        // Demande une VM allumee : l'installation passe par PowerShell Direct,
+        // qui n'a personne a qui parler sur une machine eteinte.
+        InstallUsbGuestCommand = new AsyncRelayCommand(InstallUsbGuestAsync,
+            () => SelectedVm is { State: VmState.Running });
         // Confier un peripherique exige une VM demarree : le rattachement se fait
         // DANS l'invite, par PowerShell Direct.
         ToggleUsbDeviceCommand = new AsyncRelayCommand<UsbDeviceItemViewModel>(
@@ -526,6 +530,11 @@ public sealed class VmListViewModel : ViewModelBase
 
     public AsyncRelayCommand RefreshUsbDevicesCommand { get; }
     public AsyncRelayCommand InstallUsbRedirectionCommand { get; }
+
+    /// <summary>Installe la moitie INVITE de la redirection USB. C'est elle qui
+    /// rend clavier et souris independants : sans le client dans la VM, l'hote a
+    /// beau ceder un peripherique, personne ne le recupere en face.</summary>
+    public AsyncRelayCommand InstallUsbGuestCommand { get; }
     public AsyncRelayCommand<UsbDeviceItemViewModel> ToggleUsbDeviceCommand { get; }
 
     /// <summary>Ouverture de session automatique dans la VM : le remede direct a
@@ -1145,6 +1154,31 @@ public sealed class VmListViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasNoUsbDevices));
     }
 
+    /// <summary>Pose le client USB/IP dans la VM, plus la tache qui rebranche les
+    /// peripheriques apres un redemarrage. Jusqu'ici ce n'etait fait que par le
+    /// bouton SPLYT, ce qui obligeait a relancer toute la configuration en un
+    /// clic pour la seule moitie invite.</summary>
+    private async Task InstallUsbGuestAsync()
+    {
+        if (SelectedVm is null) return;
+
+        // Memes identifiants que le reste de l'onglet : ils vivent dans l'onglet
+        // Affichage, et le message renvoie l'utilisateur la-bas.
+        var password = VddGetPassword?.Invoke() ?? "";
+        if (string.IsNullOrEmpty(password))
+        {
+            UsbStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
+            return;
+        }
+
+        UsbStatusText = Loc.Get("VmList_Usb_GuestInstalling");
+        var (result, error) = await _vmService.InstallUsbGuestAsync(
+            SelectedVm.Name, ResolveVddUsername(VddUsername), password);
+
+        UsbStatusText = result?.Message ?? error ?? Loc.Get("VmList_Usb_GuestInstallFailed");
+        await RefreshUsbDevicesAsync();
+    }
+
     private async Task InstallUsbRedirectionAsync()
     {
         UsbStatusText = Loc.Get("VmList_Usb_Installing");
@@ -1348,6 +1382,7 @@ public sealed class VmListViewModel : ViewModelBase
         // apres un demarrage, un arret ou la fin d'une installation.
         OpenConsoleCommand.RaiseCanExecuteChanged();
         CancelUnattendCommand.RaiseCanExecuteChanged();
+        InstallUsbGuestCommand.RaiseCanExecuteChanged();
         RunSplytSetupCommand.RaiseCanExecuteChanged();
         LaunchWithMoonlightCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();
