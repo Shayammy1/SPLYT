@@ -864,12 +864,26 @@
                                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
                                         <TextBlock Text="{markup:Tr VmList_Usb_Guest_Note}" TextWrapping="Wrap"
                                                    FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10" />
+                                        <!-- Les deux conditions sont dites AVANT le clic, pas
+                                             seulement apres : un bouton qui repond "il manque
+                                             quelque chose" est deja un bouton qui a l'air de ne
+                                             rien faire. -->
+                                        <TextBlock Text="{markup:Tr VmList_Usb_Guest_NeedsCredentials}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10" />
+                                        <TextBlock Text="{markup:Tr VmList_Usb_Guest_NeedsRunning}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{StaticResource WarningBrush}" Margin="0,0,0,10"
+                                                   Visibility="{Binding SelectedVm.IsRunning, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
                                         <Button Content="{markup:Tr VmList_Usb_Guest_Install}" Style="{StaticResource GhostButtonStyle}"
                                                 HorizontalAlignment="Left" Command="{Binding InstallUsbGuestCommand}"
                                                 ToolTip="{markup:Tr VmList_Usb_Guest_Tooltip}" />
-                                        <TextBlock Text="{markup:Tr VmList_Usb_Guest_NeedsRunning}" TextWrapping="Wrap" FontSize="11"
-                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"
-                                                   Visibility="{Binding SelectedVm.IsRunning, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+                                        <!-- Le retour s'affiche ICI, sous le bouton. UsbStatusText
+                                             vit sous la liste des peripheriques, souvent hors de
+                                             l'ecran depuis le haut de l'onglet. -->
+                                        <TextBlock Text="{Binding UsbGuestStatusText}" TextWrapping="Wrap" FontSize="11"
+                                                   FontFamily="Consolas" Margin="0,10,0,0"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Visibility="{Binding UsbGuestStatusText, Converter={StaticResource NullToVisibilityConverter}}" />
                                     </StackPanel>
                                 </Border>
 

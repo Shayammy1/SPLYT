@@ -29,6 +29,7 @@ public sealed class VmListViewModel : ViewModelBase
     private string? _vddResultText;
     private bool _usbServerMissing;
     private string? _usbStatusText;
+    private string? _usbGuestStatusText;
     private string _gamingUsername = "";
     private bool _gamingRememberCredentials;
     private string? _gamingResultText;
@@ -521,6 +522,13 @@ public sealed class VmListViewModel : ViewModelBase
     public bool HasNoUsbDevices => !UsbServerMissing && UsbDevices.Count == 0;
 
     public string? UsbStatusText { get => _usbStatusText; private set => SetProperty(ref _usbStatusText, value); }
+
+    /// <summary>Retour PROPRE a l'installation du client invite, affiche dans sa
+    /// carte. Distinct de UsbStatusText, qui s'affiche sous la liste des
+    /// peripheriques : un bouton situe en haut de l'onglet dont la reponse
+    /// apparait tout en bas, apres une liste qui peut etre longue, donne
+    /// exactement l'impression de ne rien faire.</summary>
+    public string? UsbGuestStatusText { get => _usbGuestStatusText; private set => SetProperty(ref _usbGuestStatusText, value); }
 
     /// <summary>Allume la ligne du peripherique manipule, pour l'identifier. Demarre
     /// et arrete par la vue quand l'onglet Peripheriques devient visible ou non :
@@ -1167,15 +1175,15 @@ public sealed class VmListViewModel : ViewModelBase
         var password = VddGetPassword?.Invoke() ?? "";
         if (string.IsNullOrEmpty(password))
         {
-            UsbStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
+            UsbGuestStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
             return;
         }
 
-        UsbStatusText = Loc.Get("VmList_Usb_GuestInstalling");
+        UsbGuestStatusText = Loc.Get("VmList_Usb_GuestInstalling");
         var (result, error) = await _vmService.InstallUsbGuestAsync(
             SelectedVm.Name, ResolveVddUsername(VddUsername), password);
 
-        UsbStatusText = result?.Message ?? error ?? Loc.Get("VmList_Usb_GuestInstallFailed");
+        UsbGuestStatusText = result?.Message ?? error ?? Loc.Get("VmList_Usb_GuestInstallFailed");
         await RefreshUsbDevicesAsync();
     }
 
