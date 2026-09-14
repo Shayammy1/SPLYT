@@ -262,6 +262,33 @@ function Get-NovaUnattendSpecializeCommands {
     foreach ($c in (Get-NovaUnattendUserCommands -Root 'HKU\SplytDefaut')) { $lignes += $c }
     $lignes += 'reg unload "HKU\SplytDefaut"'
 
+    # Signal de fin d'installation, a destination de l'hote.
+    #
+    # SetupComplete.cmd est le crochet que Windows execute tout a la fin de
+    # l'installation, une fois l'OOBE terminee et AVANT l'ecran de connexion,
+    # sous le compte systeme. C'est le seul endroit qui corresponde vraiment a
+    # "Windows est installe" : les FirstLogonCommands, elles, attendent une
+    # ouverture de session qui n'arrive jamais toute seule ici, puisque SPLYT ne
+    # pose l'ouverture automatique qu'ensuite, a la configuration en un clic.
+    #
+    # Ce qu'il ecrit ressort cote hote dans
+    # Msvm_KvpExchangeComponent.GuestExchangeItems (voir
+    # Watch-NovaVmInstallComplete.ps1), sans identifiants ni reseau.
+    #
+    # En DEUX commandes courtes, et pas une seule lisible : le champ Path d'un
+    # RunSynchronousCommand est plafonne a 259 caracteres. Une version en une
+    # ligne (PowerShell + Set-Content) en faisait 356 : tronquee, elle perdait
+    # son "exit /b 0" final, et une commande de cette phase qui rend une erreur
+    # INTERROMPT TOUTE L'INSTALLATION. Constate en essai reel - l'installeur
+    # s'arretait sur "L'ordinateur a redemarre de maniere inattendue".
+    #
+    # Le "& rem" final est la pour la redirection : chaque ligne de cette phase
+    # se voit ajouter " >nul 2>&1", qui capterait le ">" de l'echo et laisserait
+    # le fichier vide. En fermant la commande par "& rem", la redirection ajoutee
+    # s'applique a un commentaire, et l'echo garde la sienne.
+    $lignes += 'md C:\Windows\Setup\Scripts'
+    $lignes += 'echo reg add "HKLM\SOFTWARE\Microsoft\Virtual Machine\Guest" /v SplytInstallComplete /t REG_SZ /d 1 /f>C:\Windows\Setup\Scripts\SetupComplete.cmd & rem'
+
     # Une entree par commande, plutot qu'une seule ligne geante : le champ Path a
     # une longueur bornee, et une commande unique de deux mille caracteres serait
     # tronquee sans rien dire. Les entrees s'executent dans l'ordre, ce qui est
@@ -362,18 +389,10 @@ function Get-NovaUnattendPrivacyCommands {
         'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-338389Enabled /t REG_DWORD /d 0 /f',
         'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-353694Enabled /t REG_DWORD /d 0 /f',
         'reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SystemPaneSuggestionsEnabled /t REG_DWORD /d 0 /f',
-        # EN DERNIER, et ce n'est pas de la personnalisation : le seul signal fiable
-        # qui dise a l'hote que l'installation est REELLEMENT finie.
-        #
-        # Le heartbeat Hyper-V ne suffit pas : il repond des la passe specialize,
-        # donc pendant l'ecran "Installation 54 %" qui suit le premier redemarrage
-        # (constate en direct). S'y fier rendait la VM a l'utilisateur alors que
-        # Windows etait encore en train de s'installer.
-        #
-        # Tout ce qui est ecrit sous cette cle du registre invite ressort cote hote
-        # dans Msvm_KvpExchangeComponent.GuestExchangeItems. Comme les commandes de
-        # premiere ouverture de session ne tournent qu'une fois la session ouverte,
-        # voir cette valeur apparaitre veut dire : le bureau est la.
+        # Doublon volontaire du signal de fin pose par SetupComplete.cmd (voir
+        # Get-NovaUnattendSpecializeCommands) : si ce crochet n'a pas pu s'ecrire,
+        # une ouverture de session finit quand meme par le poser. Ne remplace pas
+        # SetupComplete.cmd, qui lui n'attend aucune session.
         'reg add "HKLM\SOFTWARE\Microsoft\Virtual Machine\Guest" /v SplytInstallComplete /t REG_SZ /d 1 /f'
     )
 
