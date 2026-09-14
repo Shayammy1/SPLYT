@@ -20,6 +20,8 @@ public sealed class MainViewModel : ViewModelBase
     private bool _isCreateDialogOpen;
     private CreateVmDialogViewModel? _createVmDialog;
     private bool _isSunshineDialogOpen;
+    private bool _isVmCredentialsDialogOpen;
+    private VmCredentialsDialogViewModel? _vmCredentialsDialog;
     private SunshineCredentialsDialogViewModel? _sunshineCredentialsDialog;
     private bool _isEnhancedSessionFixDialogOpen;
     private EnhancedSessionFixDialogViewModel? _enhancedSessionFixDialog;
@@ -61,6 +63,7 @@ public sealed class MainViewModel : ViewModelBase
         // demander son ouverture via cet evenement.
         VmList.CreateVmRequested += async (_, _) => await OpenCreateVmDialogAsync();
         VmList.SunshineInstallRequested += (_, vmName) => OpenSunshineCredentialsDialog(vmName);
+        VmList.CredentialsRequested += (_, dialog) => OpenVmCredentialsDialog(dialog);
         VmList.EnhancedSessionFixRequested += (_, vmName) => OpenEnhancedSessionFixDialog(vmName);
 
         // La VmList construit elle-meme sa boite de confirmation (elle seule sait ce
@@ -211,6 +214,9 @@ public sealed class MainViewModel : ViewModelBase
 
     public bool IsSunshineDialogOpen { get => _isSunshineDialogOpen; private set => SetProperty(ref _isSunshineDialogOpen, value); }
     public SunshineCredentialsDialogViewModel? SunshineCredentialsDialog { get => _sunshineCredentialsDialog; private set => SetProperty(ref _sunshineCredentialsDialog, value); }
+
+    public bool IsVmCredentialsDialogOpen { get => _isVmCredentialsDialogOpen; private set => SetProperty(ref _isVmCredentialsDialogOpen, value); }
+    public VmCredentialsDialogViewModel? VmCredentialsDialog { get => _vmCredentialsDialog; private set => SetProperty(ref _vmCredentialsDialog, value); }
 
     public bool IsEnhancedSessionFixDialogOpen { get => _isEnhancedSessionFixDialogOpen; private set => SetProperty(ref _isEnhancedSessionFixDialogOpen, value); }
     public EnhancedSessionFixDialogViewModel? EnhancedSessionFixDialog { get => _enhancedSessionFixDialog; private set => SetProperty(ref _enhancedSessionFixDialog, value); }
@@ -388,6 +394,18 @@ public sealed class MainViewModel : ViewModelBase
         window.Topmost = true;
         window.Topmost = false;
         window.Focus();
+    }
+
+    /// <summary>Ouvre la boite d'identifiants generique. L'action et ses libelles
+    /// viennent de l'appelant : la coquille ne fait que l'afficher et la refermer.
+    /// C'est ce qui evite d'obliger l'utilisateur a remplir l'onglet Affichage
+    /// avant de pouvoir se servir d'un bouton situe ailleurs.</summary>
+    private void OpenVmCredentialsDialog(VmCredentialsDialogViewModel dialog)
+    {
+        dialog.Completed += (_, _) => IsVmCredentialsDialogOpen = false;
+        dialog.Cancelled += (_, _) => IsVmCredentialsDialogOpen = false;
+        VmCredentialsDialog = dialog;
+        IsVmCredentialsDialogOpen = true;
     }
 
     private void OpenSunshineCredentialsDialog(string vmName)

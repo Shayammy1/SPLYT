@@ -84,7 +84,7 @@ public sealed class VmListViewModel : ViewModelBase
         // il faut pouvoir reessayer sans eteindre la VM : c'est aussi la seule
         // facon de voir POURQUOI un rattachement echoue.
         ApplyUsbReservationsCommand = new AsyncRelayCommand(
-            () => ApplyUsbReservationsAsync(SelectedVm),
+            () => ApplyUsbReservationsAsync(SelectedVm, interactif: true),
             () => SelectedVm is { State: VmState.Running } && HasUsbReservations);
         // Une VM selectionnee suffit, demarree ou non : c'est ToggleUsbDeviceAsync
         // qui decide quoi faire. Machine demarree, il confie le peripherique tout
@@ -723,6 +723,11 @@ public sealed class VmListViewModel : ViewModelBase
     /// <summary>Demande d'ouverture de la console de la VM dans sa propre fenetre
     /// (voir VmConsoleWindow). La coquille s'en charge : ouvrir une fenetre est
     /// une affaire de vue, pas de ViewModel.</summary>
+    /// <summary>Demande a la coquille d'afficher une boite d'identifiants. L'onglet
+    /// ne sait pas presenter de fenetre modale lui-meme, et les identifiants ne
+    /// doivent plus dependre d'un champ rempli dans un AUTRE onglet.</summary>
+    public event EventHandler<VmCredentialsDialogViewModel>? CredentialsRequested;
+
     public event EventHandler<VirtualMachine>? ConsoleRequested;
 
     /// <summary>Appele par MainViewModel une fois la boite de dialogue d'identifiants
@@ -857,7 +862,7 @@ public sealed class VmListViewModel : ViewModelBase
     /// rattachement ("usbip port --stash") et une tache au demarrage le retablit
     /// ensuite tout seul. Ce chemin ne sert donc qu'au premier contact, et aux VMs
     /// qui auraient perdu leur memoire.</summary>
-    private async Task ApplyUsbReservationsAsync(VirtualMachine? vm)
+    private async Task ApplyUsbReservationsAsync(VirtualMachine? vm, bool interactif = false)
     {
         if (vm is null || vm.ReservedUsbBusIds.Count == 0) return;
 
@@ -870,7 +875,7 @@ public sealed class VmListViewModel : ViewModelBase
         }
         try
         {
-            await ApplyUsbReservationsCoreAsync(vm);
+            await ApplyUsbReservationsCoreAsync(vm, interactif);
         }
         finally
         {
@@ -881,30 +886,60 @@ public sealed class VmListViewModel : ViewModelBase
     private readonly object _usbApplyLock = new();
     private readonly HashSet<string> _usbApplyInFlight = new(StringComparer.OrdinalIgnoreCase);
 
-    private async Task ApplyUsbReservationsCoreAsync(VirtualMachine vm)
+    private async Task ApplyUsbReservationsCoreAsync(VirtualMachine vm, bool interactif)
     {
 
-        // Identifiants : ceux qui sont saisis, sinon ceux qui ont ete memorises.
-        var username = ResolveVddUsername(VddUsername);
-        var password = VddGetPassword?.Invoke() ?? "";
-        if (string.IsNullOrEmpty(password) && VmCredentialStore.TryLoad(vm.Name, out var u, out var p))
+        if (!TryGetVmCredentials(vm.Name, out var username, out var password))
         {
-            username = u;
-            password = p;
-        }
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
-        {
-            // Dit, et pas tu : rester muet ici, c'est exactement ce qui donnait
-            // l'impression que le rattachement automatique ne marchait pas.
-            UsbStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
+            // Demande interactive : la boite s'ouvre. Demarrage automatique : on se
+            // contente de le dire - faire surgir une fenetre modale par-dessus ce
+            // que fait l'utilisateur, a chaque allumage, serait insupportable.
+            if (interactif)
+            {
+                CredentialsRequested?.Invoke(this, new VmCredentialsDialogViewModel(
+                    vm.Name,
+                    Loc.Get("VmList_Usb_Reserved_Title"),
+                    Loc.Get("VmList_Usb_ApplyNow_Tooltip"),
+                    Loc.Get("VmList_Usb_ApplyNow"),
+                    async (u, p) => await HandOverReservedAsync(vm, u, p)));
+            }
+            else
+            {
+                UsbStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
+            }
             return;
         }
+
+        var echec = await HandOverReservedAsync(vm, username, password);
+        if (echec is not null) UsbStatusText = echec;
+    }
+
+    /// <summary>Identifiants de la VM : ceux qui sont saisis dans l'onglet Affichage
+    /// s'ils y sont, sinon ceux memorises dans le Gestionnaire d'identifiants. Faux
+    /// quand il n'y a ni l'un ni l'autre - a l'appelant de decider s'il les demande
+    /// ou s'il abandonne.</summary>
+    private bool TryGetVmCredentials(string vmName, out string username, out string password)
+    {
+        username = ResolveVddUsername(VddUsername);
+        password = VddGetPassword?.Invoke() ?? "";
+        if (string.IsNullOrEmpty(password) && VmCredentialStore.TryLoad(vmName, out var u, out var p))
+        {
+            username = ResolveVddUsername(u);
+            password = p;
+        }
+        return !string.IsNullOrWhiteSpace(username) && !string.IsNullOrEmpty(password);
+    }
+
+    /// <summary>Confie effectivement les peripheriques reserves. Rend null en cas de
+    /// succes complet, sinon le message a afficher - forme attendue par la boite
+    /// d'identifiants, qui reste ouverte tant qu'une erreur revient.</summary>
+    private async Task<string?> HandOverReservedAsync(VirtualMachine vm, string username, string password)
+    {
 
         UsbStatusText = Loc.Get("VmList_Usb_ApplyingReservations");
         if (!await _vmService.WaitForGuestReadyAsync(vm.Name))
         {
-            UsbStatusText = Loc.Get("VmList_Usb_ApplyReservationsNoGuest");
-            return;
+            return Loc.Get("VmList_Usb_ApplyReservationsNoGuest");
         }
 
         // On rend compte du resultat : un rattachement qui echoue en silence au
@@ -920,11 +955,12 @@ public sealed class VmListViewModel : ViewModelBase
             else dernierEchec = error;
         }
 
-        UsbStatusText = dernierEchec is null
-            ? Loc.Get("VmList_Usb_ReservationsApplied", confies)
-            : Loc.Get("VmList_Usb_ReservationsPartly", confies, vm.ReservedUsbBusIds.Count, dernierEchec);
-
+        UsbStatusText = Loc.Get("VmList_Usb_ReservationsApplied", confies);
         await RefreshUsbDevicesAsync();
+
+        return dernierEchec is null
+            ? null
+            : Loc.Get("VmList_Usb_ReservationsPartly", confies, vm.ReservedUsbBusIds.Count, dernierEchec);
     }
 
     /// <summary>Demarre la VM SANS ouvrir sa console : utilise juste apres la
@@ -1305,25 +1341,30 @@ public sealed class VmListViewModel : ViewModelBase
     /// peripheriques apres un redemarrage. Jusqu'ici ce n'etait fait que par le
     /// bouton SPLYT, ce qui obligeait a relancer toute la configuration en un
     /// clic pour la seule moitie invite.</summary>
-    private async Task InstallUsbGuestAsync()
+    private Task InstallUsbGuestAsync()
     {
-        if (SelectedVm is null) return;
+        var vm = SelectedVm;
+        if (vm is null) return Task.CompletedTask;
 
-        // Memes identifiants que le reste de l'onglet : ils vivent dans l'onglet
-        // Affichage, et le message renvoie l'utilisateur la-bas.
-        var password = VddGetPassword?.Invoke() ?? "";
-        if (string.IsNullOrEmpty(password))
-        {
-            UsbGuestStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
-            return;
-        }
+        // Les identifiants sont demandes ICI, dans une boite, et non repris d'un
+        // champ de l'onglet Affichage : un bouton qui exige d'aller remplir un
+        // autre onglet avant de fonctionner passe pour un bouton casse.
+        CredentialsRequested?.Invoke(this, new VmCredentialsDialogViewModel(
+            vm.Name,
+            Loc.Get("VmList_Usb_Guest_Title"),
+            Loc.Get("VmList_Usb_Guest_Note"),
+            Loc.Get("VmList_Usb_Guest_Install"),
+            async (username, password) =>
+            {
+                var (result, error) = await _vmService.InstallUsbGuestAsync(vm.Name, username, password);
+                if (result is null) return error ?? Loc.Get("VmList_Usb_GuestInstallFailed");
 
-        UsbGuestStatusText = Loc.Get("VmList_Usb_GuestInstalling");
-        var (result, error) = await _vmService.InstallUsbGuestAsync(
-            SelectedVm.Name, ResolveVddUsername(VddUsername), password);
+                UsbGuestStatusText = result.Message;
+                await RefreshUsbDevicesAsync();
+                return null;
+            }));
 
-        UsbGuestStatusText = result?.Message ?? error ?? Loc.Get("VmList_Usb_GuestInstallFailed");
-        await RefreshUsbDevicesAsync();
+        return Task.CompletedTask;
     }
 
     private async Task InstallUsbRedirectionAsync()
@@ -1393,13 +1434,30 @@ public sealed class VmListViewModel : ViewModelBase
             return;
         }
 
-        var password = VddGetPassword?.Invoke() ?? "";
-        if (string.IsNullOrEmpty(password))
+        var vm = SelectedVm;
+        if (!TryGetVmCredentials(vm.Name, out var username, out var password))
         {
-            UsbStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
+            // Meme principe que partout ailleurs dans cet onglet : on demande les
+            // identifiants sur place plutot que de renvoyer vers un autre onglet.
+            var donner = !device.Attached;
+            CredentialsRequested?.Invoke(this, new VmCredentialsDialogViewModel(
+                vm.Name,
+                Loc.Get(donner ? "VmList_Usb_GiveToVm" : "VmList_Usb_GiveBack"),
+                device.Description,
+                Loc.Get(donner ? "VmList_Usb_GiveToVm" : "VmList_Usb_GiveBack"),
+                (u, p) => MoveUsbDeviceAsync(vm, device, u, p)));
             return;
         }
 
+        var echec = await MoveUsbDeviceAsync(vm, device, username, password);
+        if (echec is not null) UsbStatusText = echec;
+    }
+
+    /// <summary>Deplace vraiment le peripherique. Rend null en cas de succes, sinon
+    /// le message d'erreur - forme attendue par la boite d'identifiants.</summary>
+    private async Task<string?> MoveUsbDeviceAsync(
+        VirtualMachine vm, UsbDeviceItemViewModel device, string username, string password)
+    {
         var giveToVm = !device.Attached;
         UsbStatusText = Loc.Get(giveToVm ? "VmList_Usb_Giving" : "VmList_Usb_Returning", device.Description);
 
@@ -1409,21 +1467,19 @@ public sealed class VmListViewModel : ViewModelBase
             var (shared, shareError) = await _vmService.SetUsbShareAsync(device.BusId, share: true);
             if (shared is null)
             {
-                UsbStatusText = shareError ?? Loc.Get("VmList_Usb_ShareFailed");
-                return;
+                return shareError ?? Loc.Get("VmList_Usb_ShareFailed");
             }
         }
 
         var (attach, attachError) = await _vmService.SetVmUsbAttachAsync(
-            SelectedVm.Name, device.BusId, giveToVm, ResolveVddUsername(VddUsername), password);
+            vm.Name, device.BusId, giveToVm, username, password);
 
         if (attach is null)
         {
-            UsbStatusText = attachError ?? Loc.Get("VmList_Usb_AttachFailed");
             // Le partage a peut-etre reussi alors que le rattachement a echoue :
             // on relit l'etat reel plutot que de laisser une ligne qui ment.
             await RefreshUsbDevicesAsync();
-            return;
+            return attachError ?? Loc.Get("VmList_Usb_AttachFailed");
         }
 
         if (!giveToVm)
@@ -1435,6 +1491,7 @@ public sealed class VmListViewModel : ViewModelBase
 
         UsbStatusText = attach.Message;
         await RefreshUsbDevicesAsync();
+        return null;
     }
 
     private async Task SecureDesktopRunAsync(bool secureDesktop)

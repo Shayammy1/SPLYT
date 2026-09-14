@@ -180,6 +180,13 @@
             <ContentControl Content="{Binding SunshineCredentialsDialog}" Focusable="False" />
         </Grid>
 
+        <!-- Voile + boite de dialogue modale "Identifiants de la VM" (generique) -->
+        <Grid Grid.Row="0" Grid.RowSpan="2"
+              Visibility="{Binding IsVmCredentialsDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#B0000000" />
+            <ContentControl Content="{Binding VmCredentialsDialog}" Focusable="False" />
+        </Grid>
+
         <!-- Voile + boite de dialogue modale "Corriger la Session Amelioree" -->
         <Grid Grid.Row="0" Grid.RowSpan="2"
               Visibility="{Binding IsEnhancedSessionFixDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
