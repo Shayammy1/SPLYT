@@ -125,6 +125,8 @@ internal static class Strings
         ["VmList_Install_Stage_Copy"] = "Copie des fichiers de Windows",
         ["VmList_Install_Stage_Configure"] = "Configuration de Windows et du compte",
         ["VmList_Install_Stage_Running"] = "Installation en cours",
+        ["VmList_Install_Cancel"] = "Abandonner l'installation",
+        ["VmList_Install_Cancel_Tooltip"] = "Eteint la machine et rend la main : la console, les onglets et le bouton Supprimer redeviennent accessibles. Le disque n'est pas efface - un demarrage reprendrait l'installation la ou elle en est.",
         ["VmList_NoSelection"] = "Selectionnez une VM ou creez-en une nouvelle.",
 
         ["VmList_Tab_Resources"] = "Ressources",
@@ -503,6 +505,8 @@ internal static class Strings
         ["VmList_Install_Stage_Copy"] = "Copying Windows files",
         ["VmList_Install_Stage_Configure"] = "Configuring Windows and the account",
         ["VmList_Install_Stage_Running"] = "Installation in progress",
+        ["VmList_Install_Cancel"] = "Abandon the installation",
+        ["VmList_Install_Cancel_Tooltip"] = "Shuts the machine down and hands it back: the console, the tabs and the Delete button become available again. The disk is not erased - starting the VM would resume setup where it left off.",
         ["VmList_NoSelection"] = "Select a VM or create a new one.",
 
         ["VmList_Tab_Resources"] = "Resources",

@@ -118,6 +118,11 @@ while ((Get-Date) -lt $deadline) {
     # l'en-tete du fichier. Plafonne a 95 % : pendant la derniere phase
     # (personnalisation, creation du compte) plus rien ne grossit, seul le
     # heartbeat dira que c'est fini.
+    # L'utilisateur a pu abandonner l'installation entre-temps (voir
+    # Cancel-NovaVmUnattend.ps1). Inutile de continuer a publier une progression
+    # que plus personne ne regarde, pendant les trois heures du delai.
+    if ($unattend -and -not (Get-NovaVmPreferences -Name $Name).unattendPending) { exit }
+
     if ($unattend) {
         $bytes = Get-NovaVmDiskBytes -VmName $Name
         if ($baselineBytes -lt 0) { $baselineBytes = $bytes }

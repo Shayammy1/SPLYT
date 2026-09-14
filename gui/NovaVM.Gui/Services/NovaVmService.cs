@@ -128,6 +128,14 @@ public sealed class NovaVmService
     public Task<VirtualMachine?> ForceStopVmAsync(string name) =>
         RunForVmAsync("Stop-NovaVm.ps1", $"Arret force de '{name}'", ("Name", name), ("Force", "true"));
 
+    /// <summary>Abandonne une installation automatique et rend la VM a l'interface.
+    /// Indispensable : pendant une installation, SPLYT masque toutes les actions de
+    /// la machine, y compris Supprimer. Sans cette sortie de secours, une
+    /// installation interrompue laissait une VM dont on ne pouvait plus rien
+    /// faire.</summary>
+    public Task<VirtualMachine?> CancelUnattendAsync(string name) =>
+        RunForVmAsync("Cancel-NovaVmUnattend.ps1", $"Abandon de l'installation de '{name}'", ("Name", name));
+
     /// <summary>Arrete (normalement) toutes les VMs en cours d'execution - utilise a la
     /// fermeture de SPLYT. Best-effort : Hyper-V traite chaque arret independamment du
     /// processus SPLYT, donc pas besoin d'attendre la fin reelle avant de fermer la

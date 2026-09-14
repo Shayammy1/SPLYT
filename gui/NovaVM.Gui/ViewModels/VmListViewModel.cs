@@ -102,6 +102,8 @@ public sealed class VmListViewModel : ViewModelBase
         OpenConsoleCommand = new RelayCommand(
             () => { if (SelectedVm is not null) ConsoleRequested?.Invoke(this, SelectedVm); },
             () => SelectedVm is { State: VmState.Running, UnattendPending: false });
+        CancelUnattendCommand = new AsyncRelayCommand(CancelUnattendAsync,
+            () => SelectedVm?.UnattendPending == true);
         BrowseNvidiaDriverCommand = new RelayCommand(BrowseNvidiaDriver);
         PatchNvidiaGpuDriverCommand = new AsyncRelayCommand(PatchNvidiaGpuDriverAsync,
             () => SelectedVm is { State: VmState.Off } && !string.IsNullOrWhiteSpace(EditGpuName) && !string.IsNullOrWhiteSpace(NvidiaDriverInstallerPath));
@@ -623,6 +625,10 @@ public sealed class VmListViewModel : ViewModelBase
     }
 
     public RelayCommand OpenConsoleCommand { get; }
+
+    /// <summary>Sortie de secours de la carte de progression : rend la machine a
+    /// l'utilisateur quand l'installation a echoue, ou qu'il n'en veut plus.</summary>
+    public AsyncRelayCommand CancelUnattendCommand { get; }
     public RelayCommand BrowseNvidiaDriverCommand { get; }
     public AsyncRelayCommand PatchNvidiaGpuDriverCommand { get; }
 
@@ -788,6 +794,16 @@ public sealed class VmListViewModel : ViewModelBase
     public async Task StartHiddenAsync()
     {
         await ChangeStateAsync(_vmService.StartVmAsync);
+    }
+
+    /// <summary>Abandonne l'installation automatique de la VM selectionnee : la
+    /// machine est eteinte si besoin, le fichier de reponses supprime, et tout
+    /// ce que la progression masquait redevient accessible - a commencer par le
+    /// bouton Supprimer.</summary>
+    private async Task CancelUnattendAsync()
+    {
+        await ChangeStateAsync(_vmService.CancelUnattendAsync);
+        OnPropertyChanged(nameof(IsInstallingWindows));
     }
 
     private async Task ChangeStateAsync(Func<string, Task<VirtualMachine?>> action)
@@ -1327,6 +1343,11 @@ public sealed class VmListViewModel : ViewModelBase
         StartCommand.RaiseCanExecuteChanged();
         StopCommand.RaiseCanExecuteChanged();
         DeleteCommand.RaiseCanExecuteChanged();
+        // Ces deux-la manquaient : leur etat depend de la VM selectionnee et de
+        // l'installation en cours, donc ils restaient grises (ou actifs) a tort
+        // apres un demarrage, un arret ou la fin d'une installation.
+        OpenConsoleCommand.RaiseCanExecuteChanged();
+        CancelUnattendCommand.RaiseCanExecuteChanged();
         RunSplytSetupCommand.RaiseCanExecuteChanged();
         LaunchWithMoonlightCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();
