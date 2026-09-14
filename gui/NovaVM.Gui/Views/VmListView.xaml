@@ -910,6 +910,12 @@
                                     <Button Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,8"
                                             Content="{markup:Tr VmList_Usb_Refresh}"
                                             Command="{Binding RefreshUsbDevicesCommand}" />
+                                    <!-- Reessayer sans eteindre la VM, et surtout voir
+                                         POURQUOI un rattachement echoue. -->
+                                    <Button Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,8"
+                                            Content="{markup:Tr VmList_Usb_ApplyNow}"
+                                            Command="{Binding ApplyUsbReservationsCommand}"
+                                            ToolTip="{markup:Tr VmList_Usb_ApplyNow_Tooltip}" />
                                 </WrapPanel>
 
                                 <!-- Recapitulatif des reservations, toujours en haut : c'est la

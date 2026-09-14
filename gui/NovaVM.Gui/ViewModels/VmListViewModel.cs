@@ -80,6 +80,12 @@ public sealed class VmListViewModel : ViewModelBase
         // qui n'a personne a qui parler sur une machine eteinte.
         InstallUsbGuestCommand = new AsyncRelayCommand(InstallUsbGuestAsync,
             () => SelectedVm is { State: VmState.Running });
+        // Declencheur manuel du rattachement. Le demarrage le fait tout seul, mais
+        // il faut pouvoir reessayer sans eteindre la VM : c'est aussi la seule
+        // facon de voir POURQUOI un rattachement echoue.
+        ApplyUsbReservationsCommand = new AsyncRelayCommand(
+            () => ApplyUsbReservationsAsync(SelectedVm),
+            () => SelectedVm is { State: VmState.Running } && HasUsbReservations);
         // Une VM selectionnee suffit, demarree ou non : c'est ToggleUsbDeviceAsync
         // qui decide quoi faire. Machine demarree, il confie le peripherique tout
         // de suite ; machine eteinte, il le reserve pour le prochain demarrage.
@@ -575,6 +581,10 @@ public sealed class VmListViewModel : ViewModelBase
     /// rend clavier et souris independants : sans le client dans la VM, l'hote a
     /// beau ceder un peripherique, personne ne le recupere en face.</summary>
     public AsyncRelayCommand InstallUsbGuestCommand { get; }
+
+    /// <summary>Confie maintenant a la VM les peripheriques qui lui sont reserves,
+    /// sans attendre un redemarrage.</summary>
+    public AsyncRelayCommand ApplyUsbReservationsCommand { get; }
     public AsyncRelayCommand<UsbDeviceItemViewModel> ToggleUsbDeviceCommand { get; }
 
     /// <summary>Ouverture de session automatique dans la VM : le remede direct a
@@ -835,6 +845,7 @@ public sealed class VmListViewModel : ViewModelBase
         await ChangeStateAsync(_vmService.StartVmAsync);
         if (SelectedVm is { State: VmState.Running, UnattendPending: false }) ConsoleRequested?.Invoke(this, SelectedVm);
         _ = ApplyUsbReservationsAsync(SelectedVm);
+        // Note : RefreshStatesAsync couvre les demarrages venus d'ailleurs.
     }
 
     /// <summary>Confie a la VM qui vient de demarrer les peripheriques qui lui
@@ -850,10 +861,30 @@ public sealed class VmListViewModel : ViewModelBase
     {
         if (vm is null || vm.ReservedUsbBusIds.Count == 0) return;
 
+        // Deux chemins menent ici pour un meme demarrage (le bouton Demarrer et la
+        // detection de transition), et l'attente du demarrage de Windows dure
+        // plus d'une minute : sans ce verrou, deux tentatives se chevaucheraient.
+        lock (_usbApplyLock)
+        {
+            if (!_usbApplyInFlight.Add(vm.Name)) return;
+        }
+        try
+        {
+            await ApplyUsbReservationsCoreAsync(vm);
+        }
+        finally
+        {
+            lock (_usbApplyLock) { _usbApplyInFlight.Remove(vm.Name); }
+        }
+    }
+
+    private readonly object _usbApplyLock = new();
+    private readonly HashSet<string> _usbApplyInFlight = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task ApplyUsbReservationsCoreAsync(VirtualMachine vm)
+    {
+
         // Identifiants : ceux qui sont saisis, sinon ceux qui ont ete memorises.
-        // Sans eux on ne dit rien de plus - l'utilisateur reste libre de confier
-        // ses peripheriques a la main, et un avertissement surgissant a chaque
-        // demarrage serait plus penible qu'utile.
         var username = ResolveVddUsername(VddUsername);
         var password = VddGetPassword?.Invoke() ?? "";
         if (string.IsNullOrEmpty(password) && VmCredentialStore.TryLoad(vm.Name, out var u, out var p))
@@ -861,7 +892,13 @@ public sealed class VmListViewModel : ViewModelBase
             username = u;
             password = p;
         }
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password)) return;
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+        {
+            // Dit, et pas tu : rester muet ici, c'est exactement ce qui donnait
+            // l'impression que le rattachement automatique ne marchait pas.
+            UsbStatusText = Loc.Get("VmList_Usb_CredentialsNeeded");
+            return;
+        }
 
         UsbStatusText = Loc.Get("VmList_Usb_ApplyingReservations");
         if (!await _vmService.WaitForGuestReadyAsync(vm.Name))
@@ -997,6 +1034,12 @@ public sealed class VmListViewModel : ViewModelBase
             vm.State = fresh.State;
             changed = true;
             if (wasRunning && fresh.State != VmState.Running) VmStoppedRequested?.Invoke(this, vm);
+
+            // La VM vient de s'allumer, par quelque chemin que ce soit - bouton
+            // Demarrer, mode jeu, configuration en un clic, ou meme le
+            // Gestionnaire Hyper-V. C'est ici, et non dans un seul de ces
+            // chemins, qu'il faut lui confier ses peripheriques reserves.
+            if (!wasRunning && fresh.State == VmState.Running) _ = ApplyUsbReservationsAsync(vm);
         }
 
         if (!changed) return;
@@ -1535,6 +1578,7 @@ public sealed class VmListViewModel : ViewModelBase
         CancelUnattendCommand.RaiseCanExecuteChanged();
         InstallUsbGuestCommand.RaiseCanExecuteChanged();
         ToggleUsbDeviceCommand.RaiseCanExecuteChanged();
+        ApplyUsbReservationsCommand.RaiseCanExecuteChanged();
         RunSplytSetupCommand.RaiseCanExecuteChanged();
         LaunchWithMoonlightCommand.RaiseCanExecuteChanged();
         OpenSunshineInstallDialogCommand.RaiseCanExecuteChanged();
