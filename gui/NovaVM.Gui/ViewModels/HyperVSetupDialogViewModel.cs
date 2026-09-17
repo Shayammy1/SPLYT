@@ -21,11 +21,16 @@ public sealed class HyperVSetupDialogViewModel : ViewModelBase
     /// au lieu de re-proposer la meme invite "voulez-vous activer Hyper-V ?" comme
     /// si rien n'avait ete fait - c'etait trompeur, l'activation a bien eu lieu,
     /// il ne manque que le redemarrage pour la rendre effective.</summary>
-    public HyperVSetupDialogViewModel(NovaVmService vmService, bool rebootPending = false)
+    public HyperVSetupDialogViewModel(
+        NovaVmService vmService, bool rebootPending = false, bool virtualizationDisabled = false)
     {
         _vmService = vmService;
+        VirtualizationDisabled = virtualizationDisabled;
 
-        EnableCommand = new AsyncRelayCommand(EnableAsync);
+        // Sans virtualisation materielle, activer Hyper-V ne peut pas aboutir :
+        // le bouton est donc desactive plutot que de laisser l'utilisateur
+        // accepter, redemarrer, et retomber sur la meme boite indefiniment.
+        EnableCommand = new AsyncRelayCommand(EnableAsync, () => !VirtualizationDisabled);
         DismissCommand = new RelayCommand(() => Dismissed?.Invoke(this, EventArgs.Empty));
         RestartNowCommand = new RelayCommand(RestartNow);
 
@@ -61,6 +66,11 @@ public sealed class HyperVSetupDialogViewModel : ViewModelBase
     /// <summary>Proprietes derivees (plutot que ConverterParameter="Invert" sur
     /// BoolToVisibilityConverter, qui est le BooleanToVisibilityConverter standard
     /// WPF et ne le supporte pas - contrairement a NullToVisibilityConverter).</summary>
+    /// <summary>La virtualisation materielle est eteinte dans le BIOS/UEFI. Rien de
+    /// ce que SPLYT peut faire ne contourne ca : il faut aller la reactiver dans le
+    /// micrologiciel de la carte mere.</summary>
+    public bool VirtualizationDisabled { get; }
+
     public bool RebootRequired => Result?.RebootRequired ?? false;
     public bool NoRebootRequired => Result is not null && !Result.RebootRequired;
 

@@ -458,8 +458,15 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
+        // Virtualisation desactivee dans le micrologiciel : activer Hyper-V ne
+        // servirait a rien, et c'est exactement le cas ou l'utilisateur accepte,
+        // redemarre, et retombe sur la meme boite - "ca tourne en rond". Un
+        // utilisateur a fini par trouver seul que c'etait son BIOS. Autant le
+        // lui dire.
+        var virtualisationEteinte = diag.VirtualizationEnabled == false && !diag.HypervisorPresent;
+
         var rebootPending = AppSettingsStore.Load().HyperVRebootPending;
-        var dialog = new HyperVSetupDialogViewModel(_vmService, rebootPending);
+        var dialog = new HyperVSetupDialogViewModel(_vmService, rebootPending, virtualisationEteinte);
         dialog.Dismissed += (_, _) => IsHyperVSetupDialogOpen = false;
         HyperVSetupDialog = dialog;
         IsHyperVSetupDialogOpen = true;

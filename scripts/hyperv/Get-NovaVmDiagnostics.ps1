@@ -29,6 +29,30 @@ Invoke-NovaAction {
     $cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
     $displayVersion = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name DisplayVersion -ErrorAction SilentlyContinue).DisplayVersion
 
+    # Virtualisation materielle : la cause numero un des echecs, et la grande
+    # absente de ce rapport jusqu'ici. Un utilisateur a passe un moment a se
+    # battre avec Hyper-V avant de decouvrir tout seul que la virtualisation
+    # etait desactivee dans son BIOS - rien dans SPLYT ne le lui disait.
+    #
+    # PIEGE : Win32_Processor.VirtualizationFirmwareEnabled vaut FAUX des qu'un
+    # hyperviseur tourne deja, Windows ne voyant plus le materiel en direct.
+    # Verifie sur une machine ou la virtualisation fonctionne parfaitement :
+    # VirtualizationFirmwareEnabled = False, et les proprietes HyperVRequirement*
+    # toutes vides. Lire ce drapeau sans precaution dirait donc a tous les PC qui
+    # marchent que leur virtualisation est desactivee.
+    #
+    # D'ou l'ordre : un hyperviseur en cours d'execution PROUVE a lui seul que la
+    # virtualisation est active. Le drapeau du micrologiciel n'est consulte que
+    # s'il n'y en a pas.
+    $computerSystem = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $hypervisorPresent = [bool]($computerSystem -and $computerSystem.HypervisorPresent)
+    $virtualizationEnabled = $null
+    if ($hypervisorPresent) {
+        $virtualizationEnabled = $true
+    } elseif ($cpu -and $null -ne $cpu.VirtualizationFirmwareEnabled) {
+        $virtualizationEnabled = [bool]$cpu.VirtualizationFirmwareEnabled
+    }
+
     $diagnostics = [ordered]@{
         osCaption                = if ($os) { $os.Caption } else { $null }
         osDisplayVersion         = $displayVersion
@@ -41,6 +65,8 @@ Invoke-NovaAction {
         canListPartitionableGpus = $canListGpus
         gpuPermissionError       = $gpuError
         isElevated               = [bool]$isElevated
+        hypervisorPresent        = $hypervisorPresent
+        virtualizationEnabled    = $virtualizationEnabled
     }
 
     Write-NovaResult -Success $true -DataJson ([pscustomobject]$diagnostics | ConvertTo-Json -Depth 4 -Compress)

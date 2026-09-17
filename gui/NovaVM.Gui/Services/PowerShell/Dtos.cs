@@ -303,6 +303,15 @@ public sealed class DiagnosticsDto
     public bool CanListPartitionableGpus { get; set; }
     public string? GpuPermissionError { get; set; }
     public bool IsElevated { get; set; }
+
+    /// <summary>Un hyperviseur tourne deja sur cette machine. Prouve a lui seul
+    /// que la virtualisation materielle est active.</summary>
+    public bool HypervisorPresent { get; set; }
+
+    /// <summary>Virtualisation materielle active dans le micrologiciel. Null quand
+    /// Windows ne permet pas de le savoir. Voir Get-NovaVmDiagnostics.ps1 : le
+    /// drapeau brut du processeur ment des qu'un hyperviseur tourne.</summary>
+    public bool? VirtualizationEnabled { get; set; }
 }
 
 // --- Peripheriques USB confies a une VM (USB/IP) ----------------------------

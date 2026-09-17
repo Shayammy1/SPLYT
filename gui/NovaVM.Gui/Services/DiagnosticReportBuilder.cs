@@ -78,6 +78,18 @@ public static class DiagnosticReportBuilder
                 report.AppendLine($"  - erreur : {Redact(diagnostics.GpuPermissionError)}");
             }
             report.AppendLine($"- SPLYT lance en administrateur : {YesNo(diagnostics.IsElevated)}");
+
+            // En tete de section plutot qu'en bas de liste le jour ou on le
+            // deplacera : c'est la cause numero un des echecs, et elle manquait
+            // completement. Un utilisateur a cherche longtemps avant de decouvrir
+            // seul que sa virtualisation etait desactivee dans le BIOS.
+            report.AppendLine($"- virtualisation materielle : {diagnostics.VirtualizationEnabled switch
+            {
+                true => "activee",
+                false => "DESACTIVEE dans le BIOS/UEFI - c'est bloquant",
+                null => "indeterminee",
+            }}");
+            report.AppendLine($"- hyperviseur en cours d'execution : {YesNo(diagnostics.HypervisorPresent)}");
         }
         report.AppendLine();
 

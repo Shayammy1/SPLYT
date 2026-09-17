@@ -24,6 +24,22 @@
                         <Run Text="{markup:Tr HyperV_EditionNote}" />
                     </TextBlock>
 
+                    <!-- Sans virtualisation materielle, activer Hyper-V ne peut pas
+                         aboutir. Le dire ici evite le cycle accepter / redemarrer /
+                         retomber sur la meme boite, qu'un utilisateur a vecu avant
+                         de trouver seul que c'etait son BIOS. -->
+                    <Border Margin="0,0,0,18" Padding="14,10" CornerRadius="10"
+                            Background="{StaticResource SurfaceElevatedBrush}"
+                            BorderBrush="{StaticResource WarningBrush}" BorderThickness="1"
+                            Visibility="{Binding VirtualizationDisabled, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="{markup:Tr HyperV_NoVirtualization_Title}" FontWeight="SemiBold" FontSize="12"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" />
+                            <TextBlock Text="{markup:Tr HyperV_NoVirtualization_How}" TextWrapping="Wrap" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+
                     <StackPanel Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,0,0,10">
                         <TextBlock Text="{markup:Tr HyperV_InProgress}" FontSize="12" TextWrapping="Wrap"
                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" />
